@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Flashlight
+GenericName=Turn the flashlight on or off
+Comment=Rear camera flash as a torch
+Exec=/usr/local/bin/matepad-flashlight toggle
+Icon=flashlight-on
+Terminal=false
+Categories=Utility;
+Keywords=torch;flashlight;lamp;light;flash;
+Actions=On;Off;
+
+[Desktop Action On]
+Name=Turn On
+Exec=/usr/local/bin/matepad-flashlight on
+
+[Desktop Action Off]
+Name=Turn Off
+Exec=/usr/local/bin/matepad-flashlight off
