@@ -135,6 +135,10 @@ I 644 $S/sensors/matepad-sensord.service $U/matepad-sensord.service
 I 644 $S/sensors/net.hadess.SensorProxy.conf /etc/dbus-1/system.d/net.hadess.SensorProxy.conf
 I 755 $S/sensors/matepad-autorotate.sh /usr/local/bin/matepad-autorotate
 I 644 $S/sensors/matepad-autorotate.desktop /usr/share/applications/matepad-autorotate.desktop
+# KScreen rotates only in tablet mode by default, and KWin leaves tablet mode
+# while the M-Pencil is connected: rotate the panel always. KScreen keeps it
+# per output in control/outputs/<md5 of the name> (DSI-1 has no EDID).
+I 644 $S/sensors/kscreen-dsi1-autorotate.json 	/etc/skel/.local/share/kscreen/control/outputs/b5350822fc24a835e633b5bf90f2b56d
 # speakers, mics, volume keys
 I 644 $S/sound/matepad-tfa9874.service $U/matepad-tfa9874.service
 sed -i 's|matepad-tfa9874 watch$|matepad-tfa9874 watch /proc/asound/HuaweiMatePad11/pcm0p/sub0/status|' $U/matepad-tfa9874.service
