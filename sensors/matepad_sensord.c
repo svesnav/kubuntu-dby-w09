@@ -15,6 +15,12 @@
  * Build without -DWITH_SDBUS for a static test tool that only prints
  * readings (-d); that runs on HarmonyOS as well.
  *
+ * After a display is plugged in or out, KScreen applies the layout it saved
+ * for the new set of outputs, with the panel rotation of back then, and
+ * rotates again only when the orientation changes. So on a DRM hotplug
+ * uevent the orientation is announced again ("undefined", then the current
+ * one) a few seconds later, which makes KScreen rotate to it.
+ *
  *   matepad-sensord          D-Bus service (needs WITH_SDBUS)
  *   matepad-sensord -d [n]   print n accel samples and orientations, exit
  */
@@ -31,6 +37,7 @@
 #include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
+#include <linux/netlink.h>
 #ifdef WITH_SDBUS
 #include <systemd/sd-bus.h>
 #endif
@@ -647,6 +654,62 @@ static void orientation_changed(void)
         sd_bus_emit_properties_changed(bus, "/net/hadess/SensorProxy", "net.hadess.SensorProxy",
                                        "AccelerometerOrientation", NULL);
 }
+
+/* Display hotplug: announce the orientation again 2 s and 6 s later (see the
+ * top of the file). */
+static int ufd = -1;
+static long long reannounce_at[2];
+static long long now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
+}
+static void uevent_open(void)
+{
+    struct sockaddr_nl sa = { .nl_family = AF_NETLINK, .nl_groups = 1 };
+    ufd = socket(AF_NETLINK, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, NETLINK_KOBJECT_UEVENT);
+    if (ufd >= 0 && bind(ufd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+        close(ufd);
+        ufd = -1;
+    }
+    if (ufd < 0) logmsg("no uevent socket (%s): no re-rotation after display hotplug", strerror(errno));
+}
+static void uevent_read(void)
+{
+    char buf[4096];
+    ssize_t n;
+    while ((n = recv(ufd, buf, sizeof(buf) - 1, 0)) > 0) {
+        buf[n] = 0;
+        int drm = 0, hotplug = 0;
+        for (char *p = buf; p < buf + n; p += strlen(p) + 1) {
+            if (!strcmp(p, "SUBSYSTEM=drm")) drm = 1;
+            else if (!strcmp(p, "HOTPLUG=1")) hotplug = 1;
+        }
+        if (drm && hotplug) {
+            long long t = now_ms();
+            reannounce_at[0] = t + 2000;
+            reannounce_at[1] = t + 6000;
+        }
+    }
+}
+static void reannounce_tick(void)
+{
+    long long t = now_ms();
+    for (int i = 0; i < 2; i++) {
+        if (!reannounce_at[i] || t < reannounce_at[i]) continue;
+        reannounce_at[i] = 0;
+        if (!bus || !strcmp(orient, "undefined")) continue;
+        const char *o = orient;
+        orient = "undefined";
+        sd_bus_emit_properties_changed(bus, "/net/hadess/SensorProxy", "net.hadess.SensorProxy",
+                                       "AccelerometerOrientation", NULL);
+        orient = o;
+        sd_bus_emit_properties_changed(bus, "/net/hadess/SensorProxy", "net.hadess.SensorProxy",
+                                       "AccelerometerOrientation", NULL);
+        logmsg("display hotplug: orientation %s announced again", orient);
+    }
+}
 #else
 static void orientation_changed(void) {}
 #endif
@@ -699,14 +762,20 @@ int main(int argc, char **argv)
     r = sd_bus_request_name(bus, "net.hadess.SensorProxy", 0);
     if (r < 0) { logmsg("request name: %s", strerror(-r)); return 1; }
     logmsg("net.hadess.SensorProxy ready");
+    uevent_open();
     while (!quit) {
         while ((r = sd_bus_process(bus, NULL)) > 0) {}
         if (r < 0) { logmsg("bus: %s", strerror(-r)); break; }
         ssc_tick();
-        struct pollfd p[2] = { { sd_bus_get_fd(bus), (short)sd_bus_get_events(bus), 0 },
-                               { qfd, POLLIN, 0 } };
-        if (poll(p, 2, have_accel ? 1000 : 250) < 0 && errno != EINTR) break;
+        reannounce_tick();
+        sd_bus_flush(bus);
+        struct pollfd p[3] = { { sd_bus_get_fd(bus), (short)sd_bus_get_events(bus), 0 },
+                               { qfd, POLLIN, 0 }, { ufd, POLLIN, 0 } };
+        int wait = have_accel ? 1000 : 250;
+        if (reannounce_at[0] || reannounce_at[1]) wait = 200;
+        if (poll(p, 3, wait) < 0 && errno != EINTR) break;
         if (p[1].revents & POLLIN) while (ssc_pump(0) > 0) {}
+        if (p[2].revents & POLLIN) uevent_read();
     }
     accel_enable(0);
     sd_bus_flush_close_unref(bus);
