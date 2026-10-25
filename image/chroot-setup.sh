@@ -69,7 +69,8 @@ git clone -q https://github.com/linux-msm/hexagonrpc.git $B/hexagonrpc
 	python3 $S/sensors/hexagonrpcd-odm.py hexagonrpcd &&
 	python3 $S/sensors/hexagonrpcd-sns-registry.py hexagonrpcd $S/sensors/sns_registry.c &&
 	meson setup build --prefix=/usr/local >/dev/null && ninja -C build >/dev/null &&
-	install -m755 build/hexagonrpcd/hexagonrpcd /usr/local/bin/hexagonrpcd)
+	ninja -C build install >/dev/null && ldconfig &&	# hexagonrpcd and its libhexagonrpc
+	ldd /usr/local/bin/hexagonrpcd | grep -q 'libhexagonrpc.* => /')
 
 # BlueZ with the HOG CCC-read fix (bluetooth/hog-ccc-read-error.patch); held
 # once installed, so a resumed build (build-image.sh --resume) skips it
