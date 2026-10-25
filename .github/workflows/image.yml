@@ -39,7 +39,7 @@ jobs:
 
       - name: Prepare the work area
         run: |
-          sudo mkdir -p "$WORK" && sudo chown "$USER" "$WORK"
+          sudo mkdir -p "$WORK" && sudo chown "$(id -u):$(id -g)" "$WORK"
           sudo rm -rf "$WORK/out"    # a self-hosted runner keeps $WORK (package cache)
           df -h / "$WORK"
 
@@ -66,7 +66,7 @@ jobs:
         run: |
           sudo WORK="$WORK" bash image/build-image.sh ${{ inputs.resume && '--resume' || '' }} \
             --kernel kernel/linux-boot-*.tar --out "$WORK/out"
-          sudo chown -R "$USER" "$WORK/out"
+          sudo chown -R "$(id -u):$(id -g)" "$WORK/out"
 
       - name: Pack the release files
         run: |
