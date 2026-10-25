@@ -51,6 +51,18 @@ $APT install kubuntu-desktop firefox sddm oem-config oem-config-kde \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \
 	maliit-keyboard ddcutil ddcui upower i2c-tools
+# Kubuntu's defaults name the Firefox snap (firefox_firefox.desktop), which
+# leaves the panel's preferred://browser launcher dead, and Firefox's own
+# "make default" then writes a hidden, icon-less userapp-Firefox-*.desktop.
+# /etc/xdg comes before kubuntu-default-settings in XDG_CONFIG_DIRS.
+printf '[General]\nBrowserApplication=firefox.desktop\n' > /etc/xdg/kdeglobals
+cat > /etc/xdg/mimeapps.list <<'EOF'
+[Default Applications]
+x-scheme-handler/http=firefox.desktop
+x-scheme-handler/https=firefox.desktop
+text/html=firefox.desktop
+application/xhtml+xml=firefox.desktop
+EOF
 
 # ---- build our tools, then remove the build dependencies again
 BUILD_DEPS="build-essential pkg-config libsystemd-dev git meson ninja-build dpkg-dev fakeroot devscripts"
