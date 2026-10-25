@@ -114,7 +114,9 @@ else	# older bundles: modules tarball and loose boot files
 		cp Image.gz sm8250-huawei-dby-w09.dtb dtbo.img ramdisk-payload.img cmdline.txt release.txt /usr/lib/matepad/linux-boot/)
 fi
 (cd /usr/lib/matepad/linux-boot && sha256sum -c SHA256SUMS)
-echo qcom_pd_mapper > /etc/modules-load.d/matepad.conf
+# the speaker link's codec stub (linux,spdif-dit) is a module, and nothing
+# else loads it before the sound card gives up waiting
+printf 'qcom_pd_mapper\nsnd_soc_spdif_tx\n' > /etc/modules-load.d/matepad.conf
 
 # ---- what the installer app reads from the image: the lists of the tablet's own files
 install -D -m 644 -t /usr/share/matepad/device-files $S/device-files/manifest.txt $S/device-files/firmware.txt
