@@ -1,0 +1,37 @@
+# Self-hosted GitHub Actions runners for the kernel and image builds.
+#   cp .env.example .env    # then put the token in .env
+#   docker compose up -d --build
+# A personal account registers runners per repository: one service each.
+
+x-runner: &runner
+  build: .
+  image: matepad-actions-runner:2.338.1
+  restart: unless-stopped
+  # The image build mounts proc, sys and dev inside its arm64 chroot.
+  privileged: true
+  env_file: .env
+
+services:
+  kernel:
+    <<: *runner
+    environment:
+      REPO: svesnav/linux-dby-w09
+    volumes:
+      - kernel-work:/home/runner/_work
+      # ccache and a local copy of the Linux git history, kept between builds
+      - kernel-cache:/cache
+
+  image:
+    <<: *runner
+    environment:
+      REPO: svesnav/kubuntu-dby-w09
+    volumes:
+      - image-work:/home/runner/_work
+      # build-image.sh's work area: the downloaded .deb cache survives builds
+      - image-build:/mnt/matepad-image
+
+volumes:
+  kernel-work:
+  kernel-cache:
+  image-work:
+  image-build:

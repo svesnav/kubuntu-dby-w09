@@ -1,0 +1,12 @@
+[Unit]
+Description=Huawei touch daemon (aptouch_daemon) on Linux 7.0
+After=systemd-udev-settle.service local-fs.target
+
+[Service]
+Type=simple
+ExecStart=/bin/sh /usr/local/lib/linux70-touch/linux70-touch.sh
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

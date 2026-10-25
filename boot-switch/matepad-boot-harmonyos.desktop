@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Restart to HarmonyOS
+Comment=Restart the tablet into HarmonyOS
+Exec=/usr/local/bin/matepad-boot-harmonyos-gui
+Icon=system-reboot
+Categories=System;
+Keywords=harmonyos;android;reboot;

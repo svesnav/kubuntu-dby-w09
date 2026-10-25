@@ -1,0 +1,12 @@
+[Unit]
+Description=M-Pencil helper (BlueZ GATT <-> touch driver stylus3 interface, Linux 7.0)
+After=bluetooth.service linux70-touch.service
+Wants=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/matepad-pen/matepad-pen-bluez.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MatePad plasmashell guard
+Comment=Restarts plasmashell if it crashes
+Exec=/usr/local/bin/matepad-plasmashell-guard
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=2

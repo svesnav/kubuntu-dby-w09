@@ -1,0 +1,3 @@
+# M-Pencil (BLE 12d1:10a5): aptouch_daemon (UID/GID 1000) reads the pen's
+# pressure reports (HID input report 0x55) from its hidraw node.
+SUBSYSTEM=="hidraw", KERNELS=="0005:12D1:10A5.*", OWNER="1000", GROUP="1000", MODE="0660"

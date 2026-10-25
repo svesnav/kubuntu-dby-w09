@@ -1,0 +1,45 @@
+MatePad: keep a window's content when its buffer scale changes.
+
+A Qt Widgets popup (e.g. Plasma's desktop context menu) on a 1x screen next to
+a 2x screen was first given a 2x buffer and then, on wl_surface.enter, a 1x
+one. QWaylandWindow::handleScreensChanged() changes mScale and calls
+ensureSize(); the shm backing store then needs a buffer of a new size, which
+starts empty (transparent), and nothing repaints the whole window: the
+widget repaint manager only paints what becomes dirty, and the screen-change
+event repaints only when the QScreen changes. Rows of the menu stayed
+transparent until the pointer passed over them. Fill the new buffer with the
+old content, scaled, so the window is complete; later paints refine it.
+
+--- a/src/client/qwaylandshmbackingstore.cpp
++++ b/src/client/qwaylandshmbackingstore.cpp
+@@ -276,6 +276,15 @@ void QWaylandShmBackingStore::resize(const QSize &size)
+     qreal scale = waylandWindow()->scale();
+     QSize sizeWithMargins = (size + QSize(margins.left()+margins.right(),margins.top()+margins.bottom())) * scale;
+ 
++    // On a buffer scale change the new buffer has a different size and would
++    // start empty, while only dirty regions get repainted: keep the old
++    // content, scaled (getBuffer() may delete the old buffer, so copy first).
++    QImage oldContent;
++    if (mBackBuffer && mBackBuffer->image()->devicePixelRatio() != scale
++        && mBackBuffer->size() != sizeWithMargins) {
++        oldContent = mBackBuffer->image()->copy();
++    }
++
+     // We look for a free buffer to draw into. If the buffer is not the last buffer we used,
+     // that is mBackBuffer, and the size is the same we memcpy the old content into the new
+     // buffer so that QPainter is happy to find the stuff it had drawn before. If the new
+@@ -297,6 +306,14 @@ void QWaylandShmBackingStore::resize(const QSize &size)
+     if (mBackBuffer != buffer && oldSizeInBytes == newSizeInBytes)
+         memcpy(buffer->image()->bits(), mBackBuffer->image()->constBits(), newSizeInBytes);
+ 
++    if (!oldContent.isNull()) {
++        QPainter p(buffer->image());
++        p.setCompositionMode(QPainter::CompositionMode_Source);
++        p.setRenderHint(QPainter::SmoothPixmapTransform);
++        p.drawImage(QRectF(QPointF(0, 0), QSizeF(buffer->image()->size()) / scale), oldContent,
++                    QRectF(oldContent.rect()));
++    }
++
+     mBackBuffer = buffer;
+ 
+     // ensure the new buffer is at the beginning of the list so next time getBuffer() will pick

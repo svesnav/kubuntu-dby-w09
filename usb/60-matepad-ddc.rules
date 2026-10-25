@@ -1,0 +1,2 @@
+# Give the active local desktop user access to display DDC, not every I2C bus.
+SUBSYSTEM=="i2c-dev", ATTR{name}=="dpu_dp_aux", TAG+="uaccess"

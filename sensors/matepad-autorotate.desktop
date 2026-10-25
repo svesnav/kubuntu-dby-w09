@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Auto-Rotate Screen
+GenericName=Toggle automatic screen rotation
+Comment=Turn automatic screen rotation on or off (keeps the current orientation)
+Exec=/usr/local/bin/matepad-autorotate toggle
+Icon=rotation-allowed
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=rotate;rotation;orientation;tablet;screen;
+Actions=On;Off;
+
+[Desktop Action On]
+Name=Turn Automatic Rotation On
+Exec=/usr/local/bin/matepad-autorotate on
+
+[Desktop Action Off]
+Name=Lock Current Orientation
+Exec=/usr/local/bin/matepad-autorotate off

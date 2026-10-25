@@ -1,0 +1,95 @@
+name: image
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      kernel:
+        description: linux-dby-w09 release tag (empty = latest)
+        required: false
+      release:
+        description: Publish as a release with this tag (empty = artifact only)
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  image:
+    # Repository variable RUNNER = a self-hosted runner's label (ci/runner);
+    # otherwise GitHub's: native arm64 once public, qemu on x86-64 while private.
+    runs-on: ${{ vars.RUNNER || (github.event.repository.private && 'ubuntu-24.04' || 'ubuntu-24.04-arm') }}
+    timeout-minutes: 360
+    env:
+      KERNEL_REPO: svesnav/linux-dby-w09
+      WORK: /mnt/matepad-image
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache \
+            /usr/local/share/boost /usr/share/swift /usr/local/.ghcup
+
+      - name: Prepare the work area
+        run: |
+          sudo mkdir -p "$WORK" && sudo chown "$USER" "$WORK"
+          sudo rm -rf "$WORK/out"    # a self-hosted runner keeps $WORK (package cache)
+          df -h / "$WORK"
+
+      - name: Install the builder's tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq debootstrap xz-utils e2fsprogs
+          if [ "$(uname -m)" != aarch64 ]; then
+            sudo apt-get install -y -qq qemu-user-static binfmt-support
+            ls /proc/sys/fs/binfmt_misc/ | grep -q aarch64
+          fi
+
+      - name: Fetch the kernel bundle
+        env:
+          # A token that can read the kernel repository while it is private.
+          GH_TOKEN: ${{ secrets.KERNEL_REPO_TOKEN || github.token }}
+        run: |
+          mkdir -p kernel
+          gh release download ${{ inputs.kernel }} -R "$KERNEL_REPO" -p 'linux-boot-*.tar' -D kernel
+          tar -C kernel -xf kernel/linux-boot-*.tar
+          (cd kernel/linux-boot-*/ && sha256sum -c SHA256SUMS)
+
+      - name: Build the image
+        run: |
+          sudo WORK="$WORK" bash image/build-image.sh \
+            --kernel kernel/linux-boot-*.tar --out "$WORK/out"
+          sudo chown -R "$USER" "$WORK/out"
+
+      - name: Pack the release files
+        run: |
+          out="$WORK/out"
+          name=$(basename "$out"/kubuntu-dby-w09-*.img.xz .img.xz)
+          cp kernel/linux-boot-*.tar "$out/"
+          python3 image/release-manifest.py "$out" "$name" kernel/linux-boot-*.tar
+          ls -l "$out"
+          echo "OUT=$out" >> "$GITHUB_ENV"
+          echo "NAME=$name" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-manifest
+          path: |
+            ${{ env.OUT }}/*.json
+            ${{ env.OUT }}/*.packages
+            ${{ env.OUT }}/*.sha256
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release || github.ref_name }}
+        run: |
+          files=$(python3 -c 'import json,sys; m=json.load(open(sys.argv[1])); print(" ".join(m["parts"]))' "$OUT/$NAME.json")
+          cd "$OUT"
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "Kubuntu 24.04 for the MatePad 11 ($TAG)" \
+            --notes-file "$GITHUB_WORKSPACE/image/release-notes.md" \
+            $files "$NAME.json" "$NAME.img.xz.sha256" "$NAME.img.xz.packages" linux-boot-*.tar

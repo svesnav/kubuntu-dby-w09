@@ -1,0 +1,58 @@
+#!/bin/sh
+# /usr/local/sbin/matepad-device-setup: first boot after the installer copied
+# the tablet's own Huawei files (device-files/manifest.txt) into the image.
+# Derives what the hardware services read from them; nothing here comes from
+# the image itself. Runs once (stamp in /var/lib/matepad), before the touch,
+# sensor and speaker services and the display manager.
+set -eu
+STAMP=/var/lib/matepad/device-setup-done
+log() { echo "matepad-device-setup: $*"; }
+
+# The installer's partition spans the card: grow the root file system into it.
+root=$(findmnt -no SOURCE /)
+resize2fs "$root" && log "root file system on $root fills its partition"
+
+if [ ! -x /vendor/bin/aptouch_daemon ]; then
+	log "no device files (/vendor/bin/aptouch_daemon): install with the MatePad installer"
+	exit 0
+fi
+
+# Sensors: the tree hexagonrpcd serves to the SLPI
+R=/usr/share/qcom/sm8250/Huawei/dby-w09
+rm -rf "$R"
+mkdir -p "$R/sensors" "$R/odm/sensors"
+cp -a /vendor/dsp "$R/dsp"
+cp -a /vendor/etc/sensors/config "$R/sensors/config"
+cp -a /vendor/etc/sensors/sns_reg_config "$R/sensors/sns_reg.conf"
+cp -a /mnt/vendor/persist/sensors/registry/registry "$R/sensors/registry"
+cp -a /odm/etc/sensors/config "$R/odm/sensors/config"
+log "sensor tree in $R"
+
+# Speaker amps: Huawei's register lists (sound/matepad_tfa9874.c reads them here)
+A=/usr/local/share/matepad-sound/smartpa
+if [ -d /odm/etc/audio ]; then
+	rm -rf "$A" && mkdir -p "$A"
+	for v in nxp awinic cs; do
+		[ -d "/odm/etc/audio/$v" ] && cp -a "/odm/etc/audio/$v" "$A/"
+	done
+	log "amp register lists in $A"
+fi
+
+# Wi-Fi: the tablet's own MAC (the driver reports Qualcomm's placeholder)
+if [ -s /etc/matepad/wlan-mac ]; then
+	mkdir -p /etc/systemd/network
+	cat > /etc/systemd/network/10-matepad-wlan.link <<EOF
+[Match]
+Driver=ath11k_pci
+
+[Link]
+NamePolicy=kernel database onboard slot path
+MACAddressPolicy=none
+MACAddress=$(cat /etc/matepad/wlan-mac)
+EOF
+	log "Wi-Fi MAC $(cat /etc/matepad/wlan-mac)"
+fi
+
+mkdir -p "$(dirname "$STAMP")"
+date -u > "$STAMP"
+log done

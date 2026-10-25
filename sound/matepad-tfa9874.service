@@ -1,0 +1,16 @@
+[Unit]
+Description=MatePad speaker amplifiers (TFA9874 over i2c-dev, Linux 7.0), on while audio plays
+
+[Service]
+Type=simple
+# Same slot map as the 4.19 matepad-smartpa.service: slot 0 (FL) for the two
+# speakers on the viewer's left, slot 1 (FR) for the two on the right, from
+# /run/matepad-orientation (matepad-volkeys). Amp 0 top-left, 1 top-right,
+# 2 bottom-left, 3 bottom-right in right-up.
+Environment="MATEPAD_SMARTPA_SLOTS=right-up=0101 left-up=1010 normal=1100 bottom-up=0011 default=0101"
+ExecStart=/usr/local/sbin/matepad-tfa9874 watch
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

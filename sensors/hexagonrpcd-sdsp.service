@@ -1,0 +1,12 @@
+[Unit]
+Description=FastRPC file server for the SLPI sensors PD (hexagonrpcd, Linux 7.0)
+After=local-fs.target
+
+[Service]
+# /dev/fastrpc-sdsp appears once the SLPI remoteproc has booted; retry until then.
+ExecStart=/usr/local/bin/hexagonrpcd -f /dev/fastrpc-sdsp -d sdsp -s -R /usr/share/qcom/sm8250/Huawei/dby-w09
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
