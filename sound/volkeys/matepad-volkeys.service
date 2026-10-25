@@ -1,0 +1,19 @@
+[Unit]
+Description=MatePad volume keys that follow the tablet orientation
+Wants=matepad-sensord.service
+After=systemd-udevd.service matepad-sensord.service dbus.service
+Before=matepad-plasma-wayland.service
+
+[Service]
+Type=simple
+# Orientations (iio-sensor-proxy names) in which Volume Up/Down are swapped,
+# and the one assumed until the sensor reports (the desktop landscape).
+Environment="MATEPAD_VOLKEYS_SWAP=right-up bottom-up" "MATEPAD_VOLKEYS_DEFAULT=right-up"
+# This boot's devtmpfs may lack /dev/uinput.
+ExecStartPre=/bin/sh -c '[ -e /dev/uinput ] || { v=$(cat /sys/class/misc/uinput/dev); mknod -m 600 /dev/uinput c $${v%%:*} $${v#*:}; }'
+ExecStart=/usr/local/sbin/matepad-volkeys
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+#!/bin/sh
+# /usr/local/bin/matepad-boot-harmonyos-gui: "Restart to HarmonyOS" launcher.
+# Asks first, then runs the root helper through polkit (no password for the
+# active local session, see org.matepad.boot-harmonyos.policy).
+kdialog --title "Restart to HarmonyOS" --warningcontinuecancel \
+"The tablet will restart into HarmonyOS.
+
+To come back to Linux, open the Linux app in HarmonyOS, or run as root:
+su -c sh /cache/linux70/boot-linux.sh
+
+Save your work first." --continue-label "Restart to HarmonyOS" || exit 0
+
+if out=$(pkexec /usr/local/sbin/matepad-boot-harmonyos 2>&1); then
+	exit 0
+fi
+kdialog --title "Restart to HarmonyOS" --error "Nothing was changed.
+
+$out"

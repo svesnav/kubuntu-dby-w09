@@ -1,0 +1,14 @@
+[Unit]
+Description=MatePad Linux 7.0 charging indicator
+After=systemd-udev-trigger.service
+ConditionPathExists=/sys/class/power_supply/battery
+ConditionPathExists=/sys/class/leds/red
+ConditionPathExists=/sys/class/leds/green
+
+[Service]
+ExecStart=/usr/local/sbin/matepad-chargeled-linux70
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

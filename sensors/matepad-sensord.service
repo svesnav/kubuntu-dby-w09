@@ -1,0 +1,15 @@
+[Unit]
+Description=MatePad orientation sensor (net.hadess.SensorProxy from the SLPI accelerometer)
+Wants=hexagonrpcd-sdsp.service
+After=hexagonrpcd-sdsp.service dbus.service
+Before=display-manager.service linux70-plasma.service
+
+[Service]
+Type=dbus
+BusName=net.hadess.SensorProxy
+ExecStart=/usr/local/sbin/matepad-sensord
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

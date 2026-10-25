@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-lay out the Plasma panels after a resume (stale system tray layout)
+After=suspend.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/matepad-tray-relayout
+
+[Install]
+WantedBy=suspend.target

@@ -1,0 +1,31 @@
+Description: hog-lib: enable notifications even when the CCC cannot be read
+ The HUAWEI MatePad Keyboard (12d1:10b2) answers the read of its Input
+ Report's Client Characteristic Configuration with "Read Not Permitted".
+ hog-lib then skipped enabling notifications and, because that failed
+ request was the last pending one, never read the Report Map either, so no
+ uhid device was created: the keyboard paired and connected but typed
+ nothing.  Write the CCC regardless and carry on.
+Author: Linux 7.0 MatePad port
+--- a/profiles/input/hog-lib.c
++++ b/profiles/input/hog-lib.c
+@@ -433,15 +433,14 @@
+ 	struct gatt_request *req = user_data;
+ 	struct report *report = req->user_data;
+ 
+-	if (status != 0) {
+-		error("Error reading CCC value: %s", att_ecode2str(status));
+-		goto remove;
+-	}
++	if (status != 0)
++		error("Error reading CCC value: %s (enabling notifications anyway)",
++						att_ecode2str(status));
+ 
+ 	write_ccc(report->hog, report->hog->attrib, report->ccc_handle, report);
+ 
+-remove:
+-	remove_gatt_req(req, status);
++	/* The CCC write is queued now; let it decide when the map is read. */
++	remove_gatt_req(req, 0);
+ }
+ 
+ static const char *type_to_string(uint8_t type)

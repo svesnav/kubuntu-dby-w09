@@ -1,0 +1,34 @@
+#!/bin/sh
+# /usr/local/bin/matepad-tray-relayout: make Plasma 5.27 lay its panels out
+# again (thickness +1 and back through the PlasmaShell scripting interface).
+#
+# After a resume some system tray items change status (e.g. the battery
+# moves from the hidden list into the panel) while the screens are still off;
+# the tray then keeps a stale layout and draws the new icon on top of its
+# neighbour. A relayout puts every icon back in its own cell. Run by
+# matepad-tray-relayout.service after each suspend (twice: status changes can
+# arrive a few seconds after the screens come on).
+# The user of the active seat0 session (the stock image creates it at first
+# boot); MATEPAD_SESSION_USER overrides.
+session_user() {
+	sid=$(loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
+	[ -n "$sid" ] && loginctl show-session "$sid" -p Name --value 2>/dev/null
+}
+SESSION_USER=${MATEPAD_SESSION_USER:-$(session_user)}
+SESSION_USER=${SESSION_USER:-ubuntu}
+
+relayout() {
+	pid=$(pgrep -u "$SESSION_USER" -x plasmashell | head -1)
+	[ -n "$pid" ] || return 0
+	env=$(tr '\0' '\n' < /proc/"$pid"/environ |
+		grep -E '^(DBUS_SESSION_BUS_ADDRESS|XDG_RUNTIME_DIR|WAYLAND_DISPLAY)=' | tr '\n' ' ')
+	# shellcheck disable=SC2086
+	runuser -u "$SESSION_USER" -- env $env qdbus org.kde.plasmashell /PlasmaShell \
+		evaluateScript 'panels().forEach(function (p) { p.height = p.height + 1; p.height = p.height - 1; });' \
+		>/dev/null 2>&1 && echo "panels re-laid out"
+}
+
+for delay in ${MATEPAD_TRAY_RELAYOUT_DELAYS:-4 15}; do
+	sleep "$delay"
+	relayout
+done

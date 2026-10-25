@@ -1,0 +1,10 @@
+// Plasma's Sleep button without a password prompt: logind asks for admin
+// authentication when other users are logged in (an SSH session as root is
+// enough). Allowed for the active local session (any desktop user).
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.login1.suspend" ||
+         action.id == "org.freedesktop.login1.suspend-multiple-sessions") &&
+        subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

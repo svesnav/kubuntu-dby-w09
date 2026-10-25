@@ -1,0 +1,14 @@
+[Unit]
+Description=MatePad: derive hardware data from the tablet's own device files (first boot)
+ConditionPathExists=!/var/lib/matepad/device-setup-done
+DefaultDependencies=no
+After=local-fs.target
+Before=linux70-touch.service hexagonrpcd-sdsp.service matepad-tfa9874.service display-manager.service oem-config.service systemd-udev-trigger.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/matepad-device-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

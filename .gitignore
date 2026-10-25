@@ -1,0 +1,4 @@
+# build outputs and Python caches
+build/
+__pycache__/
+*.pyc

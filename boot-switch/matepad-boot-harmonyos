@@ -1,0 +1,140 @@
+#!/usr/bin/python3
+"""/usr/local/sbin/matepad-boot-harmonyos: restart the MatePad into HarmonyOS.
+
+1. Check the stock HarmonyOS boot/ramdisk/dtbo images in IMAGES (SHA256SUMS;
+   for this tablet the recovery kit's images, saved there by the installer).
+2. Save the Linux images that are installed now (exact sizes: the boot image
+   from its header, the DTBO from its table header, the ramdisk partition
+   whole) to the cache partition as /cache/linux70/*.img + SHA256SUMS, plus
+   boot-linux.sh: HarmonyOS mounts the same partition at /cache, and
+   `su -c sh /cache/linux70/boot-linux.sh` (or the HarmonyOS app) writes them
+   back to return to Linux.
+3. Write the stock images, read them back, sync, reboot.
+
+Nothing is written before every check has passed. --no-reboot stops after 3.
+"""
+import hashlib
+import os
+import pathlib
+import shutil
+import struct
+import subprocess
+import sys
+
+IMAGES = pathlib.Path("/usr/local/share/matepad/harmonyos-images")
+HERE = pathlib.Path(__file__).resolve().parent
+BOOT_LINUX = pathlib.Path("/usr/local/share/matepad/boot-linux.sh")
+CACHE_MNT = pathlib.Path("/run/matepad-cache")
+PARTS = ("boot", "ramdisk", "dtbo")
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def part_path(name):
+    return pathlib.Path(f"/dev/disk/by-partlabel/{name}").resolve()
+
+
+def read_part(name, length=None):
+    with part_path(name).open("rb") as f:
+        return f.read(length) if length else f.read()
+
+
+def boot_image_size(head):
+    """Size of an Android boot image (header v0-v2) from its header."""
+    if head[:8] != b"ANDROID!":
+        raise ValueError("boot partition has no Android boot image")
+    kernel, _, ramdisk, _, second, _, _, page, version = struct.unpack_from("<9I", head, 8)
+    up = lambda n: (n + page - 1) // page * page  # noqa: E731
+    size = page + up(kernel) + up(ramdisk) + up(second)
+    if version >= 1:
+        recovery_dtbo, = struct.unpack_from("<I", head, 1632)
+        size += up(recovery_dtbo)
+    if version >= 2:
+        dtb, = struct.unpack_from("<I", head, 1648)
+        size += up(dtb)
+    return size
+
+
+def dtbo_size(head):
+    magic, total = struct.unpack_from(">II", head, 0)
+    if magic != 0xD7B7AB1E:
+        raise ValueError("dtbo partition has no DTBO table")
+    return total
+
+
+def installed_linux_images():
+    head = read_part("boot", 4096)
+    imgs = {"boot": read_part("boot", boot_image_size(head))}
+    imgs["dtbo"] = read_part("dtbo", dtbo_size(read_part("dtbo", 8)))
+    imgs["ramdisk"] = read_part("ramdisk")
+    return imgs
+
+
+def stock_images():
+    sums = {}
+    for line in (IMAGES / "SHA256SUMS").read_text().split("\n"):
+        if line.strip():
+            digest, name = line.split()
+            sums[name.lstrip("*")] = digest.lower()
+    imgs = {}
+    for p in PARTS:
+        data = (IMAGES / f"{p}.img").read_bytes()
+        if sha256(data) != sums[f"{p}.img"]:
+            raise SystemExit(f"{IMAGES}/{p}.img: SHA-256 mismatch, not touching anything")
+        imgs[p] = data
+    return imgs
+
+
+def save_to_cache(linux):
+    CACHE_MNT.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["mount", "-t", "ext4", str(part_path("cache")), str(CACHE_MNT)], check=True)
+    try:
+        d = CACHE_MNT / "linux70"
+        d.mkdir(exist_ok=True)
+        lines = []
+        for p, data in linux.items():
+            (d / f"{p}.img").write_bytes(data)
+            lines.append(f"{sha256(data)}  {p}.img")
+        (d / "SHA256SUMS").write_text("\n".join(lines) + "\n")
+        shutil.copyfile(BOOT_LINUX, d / "boot-linux.sh")
+        os.sync()
+        for p, data in linux.items():
+            if sha256((d / f"{p}.img").read_bytes()) != sha256(data):
+                raise SystemExit(f"/cache/linux70/{p}.img: verify failed, not switching")
+    finally:
+        subprocess.run(["umount", str(CACHE_MNT)], check=False)
+    print("Linux images saved to /cache/linux70")
+
+
+def write_parts(imgs):
+    for p, data in imgs.items():
+        target = part_path(p)
+        size = int(subprocess.check_output(["blockdev", "--getsize64", str(target)]))
+        assert len(data) <= size, f"{p}: image larger than the partition"
+        with target.open("r+b", buffering=0) as f:
+            f.write(data)
+            os.fsync(f.fileno())
+            f.seek(0)
+            if sha256(f.read(len(data))) != sha256(data):
+                raise SystemExit(f"{p}: readback mismatch")
+        print(f"{p}: stock image written and verified")
+    os.sync()
+
+
+def main():
+    if os.geteuid() != 0:
+        raise SystemExit("run as root")
+    stock = stock_images()
+    linux = installed_linux_images()
+    if all(sha256(linux[p]) == sha256(stock[p]) for p in PARTS):
+        raise SystemExit("the stock HarmonyOS images are installed already")
+    save_to_cache(linux)
+    write_parts(stock)
+    if "--no-reboot" not in sys.argv:
+        subprocess.run(["systemctl", "reboot"], check=False)
+
+
+if __name__ == "__main__":
+    main()

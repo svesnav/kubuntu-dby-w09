@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=MatePad on-screen keyboard switch
+Comment=On-screen keyboard only while no hardware keyboard is attached
+Exec=/usr/local/bin/matepad-osk-auto
+OnlyShowIn=KDE;
+NoDisplay=true
+X-KDE-autostart-phase=1
