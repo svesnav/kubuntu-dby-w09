@@ -93,20 +93,26 @@ apt-mark auto $BUILD_DEPS >/dev/null
 $APT autoremove --purge
 rm -rf $B
 
-# ---- kernel modules (built in the linux-dby-w09 repo)
-tar -xzf /tmp/linux-modules.tar.gz -C /usr/lib/modules
-for k in /usr/lib/modules/*-dby-w09*; do depmod "$(basename "$k")"; done
+# ---- the kernel (linux-dby-w09): its Debian package when the bundle has one,
+#      so later kernels update with apt; it puts the modules in /usr/lib/modules
+#      and the boot files the installer app reads in /usr/lib/matepad/linux-boot
+#      (in a chroot its postinst leaves the boot partitions alone)
+deb=$(ls /tmp/linux-boot/linux-image-dby-w09_*_arm64.deb 2>/dev/null | head -n 1 || true)
+if [ -n "$deb" ]; then
+	$APT install "$deb"
+else	# older bundles: modules tarball and loose boot files
+	tar -xzf /tmp/linux-modules.tar.gz -C /usr/lib/modules
+	for k in /usr/lib/modules/*-dby-w09*; do depmod "$(basename "$k")"; done
+	install -d /usr/lib/matepad/linux-boot
+	(cd /tmp/linux-boot && grep -E ' (Image\.gz|sm8250-huawei-dby-w09\.dtb|dtbo\.img|ramdisk-payload\.img|cmdline\.txt|release\.txt)$' SHA256SUMS \
+			> /usr/lib/matepad/linux-boot/SHA256SUMS &&
+		cp Image.gz sm8250-huawei-dby-w09.dtb dtbo.img ramdisk-payload.img cmdline.txt release.txt /usr/lib/matepad/linux-boot/)
+fi
+(cd /usr/lib/matepad/linux-boot && sha256sum -c SHA256SUMS)
 echo qcom_pd_mapper > /etc/modules-load.d/matepad.conf
 
-# ---- what the installer app reads from the image: the lists of the tablet's
-#      own files, and the boot bundle without its modules (installed above)
+# ---- what the installer app reads from the image: the lists of the tablet's own files
 install -D -m 644 -t /usr/share/matepad/device-files $S/device-files/manifest.txt $S/device-files/firmware.txt
-if [ -d /tmp/linux-boot ]; then
-	install -d /usr/lib/matepad/linux-boot
-	(cd /tmp/linux-boot && grep -v ' linux-modules.tar.gz$' SHA256SUMS > /usr/lib/matepad/linux-boot/SHA256SUMS &&
-		cp Image.gz sm8250-huawei-dby-w09.dtb dtbo.img ramdisk-payload.img cmdline.txt release.txt /usr/lib/matepad/linux-boot/)
-	(cd /usr/lib/matepad/linux-boot && sha256sum -c SHA256SUMS)
-fi
 
 # ---- MatePad components (each folder's install script does the same on a
 #      running system)
