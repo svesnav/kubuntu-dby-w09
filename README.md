@@ -12,14 +12,17 @@ repository builds the image and holds the hardware support services.
 
 ## Installing
 
-1. HarmonyOS with root (Magisk) and a microSD card (32 GB or more; the
+1. HarmonyOS with root (APatch or Magisk) and a microSD card (32 GB or more; the
    whole card is erased).
 2. Install the **MatePad Linux installer** app, choose a release (or a local
-   `.img.xz`) and the card, then **Install**. The app writes the image, grows
-   it to the whole card, copies the tablet's own firmware and vendor files
-   into it, and keeps the stock boot images for the way back.
-3. **Boot Linux** in the app. The first boot opens Kubuntu's setup: language,
-   keyboard, time zone and the user account.
+   `.img.xz`) and the card, fill in the account, language, keyboard and time
+   zone, then **Install**. The app writes the image, grows it to the whole
+   card, copies the tablet's own firmware, vendor files and M-Pencil address
+   into it, sets up the account, and keeps the stock boot images for the way
+   back.
+3. **Boot Linux** in the app. The first boot opens the login screen (or the
+   desktop, with automatic login).
+   To pair the M-Pencil, take it off its magnet and put it back.
 4. Back to HarmonyOS: **Restart to HarmonyOS** in the Kubuntu menu or on the
    desktop. HarmonyOS and its data on the internal storage are never touched.
 
@@ -45,7 +48,7 @@ tables and Wi-Fi MAC on the first boot.
 | `sensors/` | auto-rotation: patched `hexagonrpcd` serving the SLPI, `matepad-sensord` (accelerometer → `net.hadess.SensorProxy`), rotation toggle |
 | `sound/` | TFA9874 speaker amplifiers, ALSA UCM profile, PipeWire EQ and limiter, real-time limits, orientation-aware volume keys |
 | `bluetooth/` | BlueZ rebuilt with the HOG CCC-read fix (Huawei keyboard) |
-| `pen/` | M-Pencil pressure and buttons over BLE (GATT helper, hidraw rule) |
+| `pen/` | M-Pencil: pairing by the address from HarmonyOS (it does not advertise as discoverable), pressure and buttons over BLE (GATT helper, hidraw rule) |
 | `usb/` | HDMI/DP audio, DisplayPort EDID recovery, DDC/CI access for `ddcutil`, docked rotation |
 | `power/` | charging LED (red charging, green full) |
 | `sleep/` | Sleep button suspends; cover and power key blank the screen; suspend hook and PowerDevil profile |

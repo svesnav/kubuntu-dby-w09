@@ -178,6 +178,10 @@ I 644 $S/pen/pen.py /usr/local/lib/matepad-pen/pen.py
 I 644 $S/pen/matepad-pen-bluez.py /usr/local/lib/matepad-pen/matepad-pen-bluez.py
 I 644 $S/pen/61-matepad-pen-hidraw.rules /etc/udev/rules.d/61-matepad-pen-hidraw.rules
 I 644 $S/pen/matepad-pen-bluez.service $U/matepad-pen-bluez.service
+# the pen does not advertise as discoverable, so Plasma never lists it: pair it
+# once by the address the installer copied from HarmonyOS (/etc/matepad/pen-mac)
+I 644 $S/pen/matepad-pen-pair.py /usr/local/lib/matepad-pen/matepad-pen-pair.py
+I 644 $S/pen/matepad-pen-pair.service $U/matepad-pen-pair.service
 # USB-C: HDMI audio, DP EDID recovery, DDC/CI access, docked rotation
 I 755 $S/usb/matepad-hdmi-audio.py /usr/local/bin/matepad-hdmi-audio-linux70
 I 755 $S/usb/matepad-dp-recover.py /usr/local/sbin/matepad-dp-recover
@@ -251,7 +255,7 @@ I 755 $S/image/matepad-device-setup /usr/local/sbin/matepad-device-setup
 I 644 $S/image/matepad-device-setup.service $U/matepad-device-setup.service
 
 systemctl enable linux70-touch.service hexagonrpcd-sdsp.service matepad-sensord.service \
-	matepad-tfa9874.service matepad-volkeys.service matepad-pen-bluez.service \
+	matepad-tfa9874.service matepad-volkeys.service matepad-pen-bluez.service matepad-pen-pair.service \
 	matepad-dp-recover.service matepad-chargeled-linux70.service matepad-tray-relayout.service \
 	matepad-device-setup.service bluetooth.service systemd-timesyncd.service upower.service
 systemctl --global enable filter-chain.service matepad-hdmi-audio.service
