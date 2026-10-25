@@ -28,7 +28,8 @@ repository builds the image and holds the hardware support services.
 
 ## What the image contains
 
-- `kubuntu-desktop` with Firefox from Mozilla's APT repository (no snaps),
+- `kubuntu-desktop` with Firefox from Mozilla's APT repository (no snaps; the
+  default browser),
   Xournal++, the Maliit on-screen keyboard, `ddcutil`/`ddcui`.
 - Plasma on Wayland, SDDM on Wayland, KWin with the OpenGL compositor and the
   blur effect off (popups slide in without a frame of outline).
@@ -51,6 +52,7 @@ tables and Wi-Fi MAC on the first boot.
 | `pen/` | M-Pencil: pairing by the address from HarmonyOS (it does not advertise as discoverable), pressure and buttons over BLE (GATT helper, hidraw rule) |
 | `usb/` | HDMI/DP audio, DisplayPort EDID recovery, DDC/CI access for `ddcutil`, docked rotation |
 | `power/` | charging LED (red charging, green full) |
+| `flashlight/` | **Flashlight** in the menu: the rear flash LED as a torch (`matepad-flashlight`, udev rule for the user) |
 | `sleep/` | Sleep button suspends; cover and power key blank the screen; suspend hook and PowerDevil profile |
 | `desktop/` | tray relayout after resume, plasmashell guard, on-screen keyboard switching, patched Qt Wayland client (`qt/`) |
 | `boot-switch/` | **Restart to HarmonyOS**: saves the Linux boot images to `/cache/linux70`, writes the verified stock ones, reboots |
