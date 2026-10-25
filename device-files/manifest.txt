@@ -836,6 +836,7 @@
 /odm/etc/sensors/config/vd6281_3751.json
 /system/bin/getprop
 /system/bin/linker64
+/system/bin/toolbox
 /system/bin/toybox
 /system/lib64/aaudio-aidl-cpp.so
 /system/lib64/android.frameworks.bufferhub@1.0.so

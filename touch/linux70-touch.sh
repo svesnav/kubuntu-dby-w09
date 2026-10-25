@@ -20,11 +20,9 @@ mkdir -p /dev/__properties__ /dev/binderfs
 cp -a /android-properties/. /dev/__properties__/
 # Optional local override of the vendor touch rules (the 4.19-era setup had one).
 [ -f "$H/codex-thp-rules.xml" ] && cp "$H/codex-thp-rules.xml" /vendor/lib64/thp_project_id_match_rules.xml
-# getprop through the device's own toybox (or an older local copy)
-TB=$H/codex-toolbox
-[ -x "$TB" ] || TB=/system/bin/toybox
-ln -sf "$TB" /tmp/getprop
-model=$(/system/bin/linker64 /tmp/getprop ro.product.model)
+# getprop is Android's toolbox here; started by the Android linker it sees
+# only its real name, so the applet goes as the first argument
+model=$(/system/bin/linker64 /system/bin/toolbox getprop ro.product.model)
 [ "$model" = DBY-W09 ] || { echo "Android property area not readable ($model)"; exit 1; }
 
 grep -qs ' /dev/binderfs binder ' /proc/mounts || mount -t binder binder /dev/binderfs

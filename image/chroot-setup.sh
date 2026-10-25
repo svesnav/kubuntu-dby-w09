@@ -47,7 +47,7 @@ $APT dist-upgrade
 locale-gen en_US.UTF-8
 echo 'LANG=en_US.UTF-8' > /etc/default/locale
 $APT install kubuntu-desktop firefox sddm oem-config oem-config-kde \
-	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg \
+	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg xserver-xorg-input-libinput \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \
 	maliit-keyboard ddcutil ddcui upower i2c-tools
@@ -284,6 +284,28 @@ fi
 
 # ---- Kubuntu's first-boot setup (language, keyboard, time zone, user)
 oem-config-prepare --quiet
+# It boots into oem-config.target, which stops at basic.target: start the
+# hardware services there too (touch for the setup itself, sensors, sound).
+for s in linux70-touch hexagonrpcd-sdsp matepad-sensord matepad-tfa9874 matepad-volkeys \
+	matepad-chargeled-linux70 matepad-dp-recover; do
+	systemctl add-wants oem-config.target $s.service
+done
+# The setup runs on X (Plasma and SDDM use Wayland): landscape like KScreen
+# sets for Plasma, the touchscreen turned with it, and readable at 2x.
+install -d /etc/X11/xorg.conf.d $U/oem-config.service.d
+cat > /etc/X11/xorg.conf.d/90-matepad.conf <<'EOF'
+# The panel is portrait; the tablet is used in landscape.
+Section "Monitor"
+	Identifier "DSI-1"
+	Option "Rotate" "right"
+EndSection
+Section "InputClass"
+	Identifier "MatePad touchscreen"
+	MatchIsTouchscreen "on"
+	Option "CalibrationMatrix" "0 1 0 -1 0 1 0 0 1"
+EndSection
+EOF
+printf '[Service]\nEnvironment=QT_SCALE_FACTOR=2 QT_AUTO_SCREEN_SCALE_FACTOR=0\n' > $U/oem-config.service.d/matepad.conf
 
 # ---- clean up
 rm -f /usr/sbin/policy-rc.d /etc/apt/apt.conf.d/80-matepad-build-retries
