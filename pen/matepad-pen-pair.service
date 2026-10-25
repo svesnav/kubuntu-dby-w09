@@ -1,0 +1,13 @@
+[Unit]
+Description=MatePad: pair the M-Pencil (it advertises without the discoverable flag)
+ConditionPathExists=/etc/matepad/pen-mac
+Requires=bluetooth.service
+After=bluetooth.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/matepad-pen/matepad-pen-pair.py
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=bluetooth.target
