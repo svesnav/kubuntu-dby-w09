@@ -57,6 +57,28 @@ tables and Wi-Fi MAC on the first boot.
 
 `image/chroot-setup.sh` builds and installs all of them into the image.
 
+## M-Pencil
+
+The pen advertises without the Bluetooth "discoverable" flag, so Plasma's
+**Add Device** never lists it. The installer copies the address of the pen
+paired in HarmonyOS to `/etc/matepad/pen-mac`, and `matepad-pen-pair.service`
+pairs it once: it scans for that address, pairs (Just Works), trusts and
+connects the pen, then exits. The pen advertises when it is woken: take it off
+its magnet and put it back. After that `matepad-pen-bluez` handles pressure,
+the panel parameters and double-tap (eraser / pen in Xournal++).
+
+Without an address from HarmonyOS (pen never paired there), set it by hand.
+`sudo btmgmt find -l` lists the pen as `M-Pencil` while it is awake:
+
+```bash
+echo 70:61:EE:00:00:00 | sudo tee /etc/matepad/pen-mac
+sudo systemctl restart matepad-pen-pair
+journalctl -u matepad-pen-pair -f
+```
+
+To pair again, remove the pen in Bluetooth settings and restart
+`matepad-pen-pair`.
+
 ## Building the image
 
 On Ubuntu 24.04, x86-64 (with `qemu-user-static`) or arm64:
