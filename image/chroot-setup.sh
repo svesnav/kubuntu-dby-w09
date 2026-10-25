@@ -71,7 +71,9 @@ git clone -q https://github.com/linux-msm/hexagonrpc.git $B/hexagonrpc
 	meson setup build --prefix=/usr/local >/dev/null && ninja -C build >/dev/null &&
 	install -m755 build/hexagonrpcd/hexagonrpcd /usr/local/bin/hexagonrpcd)
 
-# BlueZ with the HOG CCC-read fix (bluetooth/hog-ccc-read-error.patch)
+# BlueZ with the HOG CCC-read fix (bluetooth/hog-ccc-read-error.patch); held
+# once installed, so a resumed build (build-image.sh --resume) skips it
+apt-mark showhold | grep -qx bluez ||
 (cd $B && apt-get source -q bluez && $APT build-dep bluez &&
 	cd bluez-[0-9]*/ && cp $S/bluetooth/hog-ccc-read-error.patch debian/patches/ &&
 	echo hog-ccc-read-error.patch >> debian/patches/series &&
@@ -79,7 +81,8 @@ git clone -q https://github.com/linux-msm/hexagonrpc.git $B/hexagonrpc
 	cd .. && $APT install --allow-downgrades ./bluez_*_arm64.deb && apt-mark hold bluez)
 
 # libQt5WaylandClient with the buffer-scale fix (desktop/qt/), the packaged
-# library diverted to /usr/lib/matepad/qtwayland-original
+# library diverted to /usr/lib/matepad/qtwayland-original (skipped once done)
+dpkg-divert --list | grep -q qtwayland-original ||
 (cd $B && apt-get source -q qtwayland-opensource-src && $APT build-dep qtwayland-opensource-src &&
 	cd qtwayland-opensource-src-*/ && patch -p1 < $S/desktop/qt/qtwayland-shm-scale-change.patch &&
 	mkdir build && cd build && /usr/lib/qt5/bin/qmake ../qtwayland.pro >/dev/null && make qmake_all >/dev/null &&
@@ -101,6 +104,7 @@ deb=$(ls /tmp/linux-boot/linux-image-dby-w09_*_arm64.deb 2>/dev/null | head -n 1
 if [ -n "$deb" ]; then
 	$APT install "$deb"
 else	# older bundles: modules tarball and loose boot files
+	install -d /usr/lib/modules
 	tar -xzf /tmp/linux-modules.tar.gz -C /usr/lib/modules
 	for k in /usr/lib/modules/*-dby-w09*; do depmod "$(basename "$k")"; done
 	install -d /usr/lib/matepad/linux-boot

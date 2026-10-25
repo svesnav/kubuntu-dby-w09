@@ -11,6 +11,10 @@ on:
       release:
         description: Publish as a release with this tag (empty = artifact only)
         required: false
+      resume:
+        description: Reuse the previous build tree on a self-hosted runner (faster; releases should build clean)
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -60,7 +64,7 @@ jobs:
 
       - name: Build the image
         run: |
-          sudo WORK="$WORK" bash image/build-image.sh \
+          sudo WORK="$WORK" bash image/build-image.sh ${{ inputs.resume && '--resume' || '' }} \
             --kernel kernel/linux-boot-*.tar --out "$WORK/out"
           sudo chown -R "$USER" "$WORK/out"
 
