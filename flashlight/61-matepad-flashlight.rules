@@ -1,0 +1,3 @@
+# Flashlight: anyone logged in may switch the rear flash LED in torch mode
+# (matepad-flashlight). Flash strobes stay root-only.
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="white:flash", RUN+="/bin/chmod 0666 /sys%p/brightness"

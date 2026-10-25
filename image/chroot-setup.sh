@@ -186,6 +186,10 @@ I 644 $S/pen/matepad-pen-bluez.service $U/matepad-pen-bluez.service
 # once by the address the installer copied from HarmonyOS (/etc/matepad/pen-mac)
 I 644 $S/pen/matepad-pen-pair.py /usr/local/lib/matepad-pen/matepad-pen-pair.py
 I 644 $S/pen/matepad-pen-pair.service $U/matepad-pen-pair.service
+# flashlight: the rear flash LED in torch mode
+I 755 $S/flashlight/matepad-flashlight /usr/local/bin/matepad-flashlight
+I 644 $S/flashlight/matepad-flashlight.desktop /usr/share/applications/matepad-flashlight.desktop
+I 644 $S/flashlight/61-matepad-flashlight.rules /etc/udev/rules.d/61-matepad-flashlight.rules
 # USB-C: HDMI audio, DP EDID recovery, DDC/CI access, docked rotation
 I 755 $S/usb/matepad-hdmi-audio.py /usr/local/bin/matepad-hdmi-audio-linux70
 I 755 $S/usb/matepad-dp-recover.py /usr/local/sbin/matepad-dp-recover

@@ -1,0 +1,17 @@
+#!/bin/sh
+# Flashlight: the rear camera flash LED (PM8150L flash block, "white:flash")
+# in torch mode. 61-matepad-flashlight.rules lets the seat user write it.
+# usage: matepad-flashlight [toggle|on|off|status]
+set -u
+led=/sys/class/leds/white:flash
+[ -w $led/brightness ] || { echo "no flashlight ($led)" >&2; exit 1; }
+cur=$(cat $led/brightness)
+case "${1:-toggle}" in
+    status) [ "$cur" -gt 0 ] && echo on || echo off; exit 0 ;;
+    on) new=on ;;
+    off) new=off ;;
+    toggle) [ "$cur" -gt 0 ] && new=off || new=on ;;
+    *) echo "usage: $0 [toggle|on|off|status]" >&2; exit 2 ;;
+esac
+if [ $new = on ]; then cat $led/max_brightness > $led/brightness; else echo 0 > $led/brightness; fi
+echo $new
