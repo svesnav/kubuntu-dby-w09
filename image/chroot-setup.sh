@@ -281,6 +281,9 @@ I 644 $S/desktop/osk/matepad-osk-auto.desktop /etc/xdg/autostart/matepad-osk-aut
 I 755 $S/desktop/osk/matepad-typing-watch /usr/local/sbin/matepad-typing-watch
 I 644 $S/desktop/osk/matepad-typing-watch.service $U/matepad-typing-watch.service
 printf '[Plugins]\nblurEnabled=false\n' > /etc/xdg/kwinrc     # popups: no outline before the slide
+# the on-screen keyboard: KWin shows a virtual keyboard only with one set here
+# (System Settings > Virtual Keyboard); matepad-osk-auto switches it on and off
+printf '[Wayland]\nInputMethod=/usr/share/applications/com.github.maliit.keyboard.desktop\n' >> /etc/xdg/kwinrc
 cat > /usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
 # KWin's OpenGL compositor on the Adreno 650 (freedreno).
