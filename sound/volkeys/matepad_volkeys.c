@@ -43,6 +43,10 @@
  * the cover sweeping past while it is opened flickers the sensor for ~0.6 s.
  * The state is also written to /run/matepad-cover (for the sleep hook).
  * MATEPAD_COVER=0 turns this off.
+ * Linux 7.0 has no Huawei hall driver: the cover sensor is a gpio-keys
+ * SW_LID switch ("matepad-cover", add it to MATEPAD_VOLKEYS_INPUTS). It is
+ * grabbed like the keys and fed to the same logic, but not forwarded: a lid
+ * switch would make logind/PowerDevil suspend or only disable the panel.
  *
  * After a system suspend, the power key press that woke the tablet arrives
  * here as a normal press; forwarded, PowerDevil would turn the screen off
@@ -98,6 +102,7 @@ static int hall_pipe[2] = { -1, -1 };
 static int cover_raw = -1;          /* last sensor state: 1 closed */
 static int cover_reported = -1;     /* last state acted on */
 static double close_at;             /* report "closed" at this time (0: none) */
+static int cover_input = -1;        /* input device with SW_LID (Linux 7.0) */
 static int close_ms = 1000;
 static double resumed_at = -10;     /* monotonic time of the last resume seen */
 static double sleep_offset = -1;    /* CLOCK_BOOTTIME - CLOCK_MONOTONIC */
@@ -177,7 +182,7 @@ static int create_output(void)
 				ioctl(fd, UI_SET_KEYBIT, b);
 		if (ioctl(in_fd[i], EVIOCGBIT(EV_SW, sizeof(sws)), sws) > 0)
 			for (b = 0; b < SW_CNT; b++)
-				if (TEST_BIT(b, sws)) {
+				if (TEST_BIT(b, sws) && b != SW_LID) {      /* the cover: not forwarded */
 					if (!has_sw++)
 						ioctl(fd, UI_SET_EVBIT, EV_SW);
 					ioctl(fd, UI_SET_SWBIT, b);
@@ -428,6 +433,18 @@ static void start_cover(void)
 		return;
 	if (getenv("MATEPAD_COVER_CLOSE_MS"))
 		close_ms = atoi(getenv("MATEPAD_COVER_CLOSE_MS"));
+	for (v = 0; v < n_in; v++) {
+		unsigned long sws[NBITS(SW_CNT)] = { 0 };
+
+		if (ioctl(in_fd[v], EVIOCGBIT(EV_SW, sizeof(sws)), sws) > 0 && TEST_BIT(SW_LID, sws)) {
+			cover_input = v;
+			memset(sws, 0, sizeof(sws));
+			if (ioctl(in_fd[v], EVIOCGSW(sizeof(sws)), sws) >= 0)
+				cover_changed(TEST_BIT(SW_LID, sws) ? HALL_COVER : 0, 1);
+			fprintf(stderr, "cover: lid switch on input %d\n", v);
+			return;
+		}
+	}
 	fd = open_hall();
 	if (fd < 0) {
 		perror("/dev/apsensorhub (no cover switch)");
@@ -656,6 +673,12 @@ int main(int argc, char **argv)
 			while ((len = read(in_fd[i], ev, sizeof(ev))) > 0) {
 				for (size_t k = 0; k < len / sizeof(ev[0]); k++) {
 					int code = ev[k].code;
+
+					if (ev[k].type == EV_SW && code == SW_LID) {
+						if (cover_input >= 0)
+							cover_changed(ev[k].value ? HALL_COVER : 0, 0);
+						continue;
+					}
 
 					if (ev[k].type == EV_KEY && code == KEY_POWER) {
 						/* the press that woke the system, once the

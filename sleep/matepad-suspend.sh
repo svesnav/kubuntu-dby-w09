@@ -69,12 +69,17 @@ panel_on() { [ -n "$PANEL" ] && grep -q '^On' "$PANEL" 2>/dev/null; }
 # interrupt counts of the power key and of the cover's hall sensor
 user_irqs() {
 	awk 'NR == 1 { cpus = NF }
-	     /pon_kpdpwr_status|pm8941_pwrkey|hall0_north/ { s = 0
+	     /pon_kpdpwr_status|pm8941_pwrkey|hall0_north|hall-cover/ { s = 0
 		for (i = 2; i <= cpus + 1; i++) s += $i
 		printf "%s=%d ", $NF, s }' /proc/interrupts
 }
 
 cover_closed() {
+	# Linux 7.0: the hall sensor's line (gpio113, low while closed)
+	g=$(grep -m1 ' gpio113 ' /sys/kernel/debug/gpio 2>/dev/null)
+	if [ -n "$g" ]; then
+		case "$g" in *' in lo'*) return 0 ;; *) return 1 ;; esac
+	fi
 	v=$(cat /sys/devices/platform/huawei_hall_sensor/get_hall_status 2>/dev/null) || return 1
 	[ $(( v & 1 )) = 1 ]
 }

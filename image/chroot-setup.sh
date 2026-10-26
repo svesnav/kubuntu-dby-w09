@@ -204,7 +204,8 @@ open(f, "w").write(t)
 EOF
 I 644 $S/sound/volkeys/matepad-volkeys.service $U/matepad-volkeys.service
 mkdir -p $U/matepad-volkeys.service.d
-printf '[Service]\nEnvironment=MATEPAD_VOLKEYS_INPUTS=gpio-keys,pm8941_resin,pm8941_pwrkey MATEPAD_COVER=0\n' \
+# the cover's hall sensor is a gpio-keys lid switch on Linux 7.0 (matepad-cover)
+printf '[Service]\nEnvironment=MATEPAD_VOLKEYS_INPUTS=gpio-keys,pm8941_resin,pm8941_pwrkey,matepad-cover\n' \
 	> $U/matepad-volkeys.service.d/linux70.conf
 # M-Pencil
 I 644 $S/pen/pen.py /usr/local/lib/matepad-pen/pen.py
