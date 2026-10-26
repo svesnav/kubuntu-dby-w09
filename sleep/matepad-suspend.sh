@@ -64,7 +64,24 @@ dpms() {
 	log "screens $1 ($?)"
 }
 
-panel_on() { [ -n "$PANEL" ] && grep -q '^On' "$PANEL" 2>/dev/null; }
+# Is the built-in panel on? Linux 7.0 (atomic msm): the connector's "dpms"
+# file stays "On" whatever KWin does, so the CRTC driving DSI-1 must be active
+# in the DRM state (debugfs). The 4.19 kernel: card0-DSI-1/dpms.
+DRM_STATE=
+for p in /sys/kernel/debug/dri/ae01000.display-controller/state /sys/kernel/debug/dri/*/state; do
+	grep -q 'DSI-1' "$p" 2>/dev/null && { DRM_STATE=$p; break; }
+done
+panel_on() {
+	if [ -n "$DRM_STATE" ]; then
+		awk '/^crtc\[[0-9]+\]: / { crtc = $2 }
+		     /^\tactive=/ { split($1, a, "="); active[crtc] = a[2] }
+		     /^connector\[[0-9]+\]: / { dsi = ($2 == "DSI-1"); next }
+		     dsi && /^\tcrtc=/ { split($1, c, "="); on = c[2]; dsi = 0 }
+		     END { exit !(on != "" && on != "(null)" && active[on] == 1) }' "$DRM_STATE"
+		return
+	fi
+	[ -n "$PANEL" ] && grep -q '^On' "$PANEL" 2>/dev/null
+}
 
 # interrupt counts of the power key and of the cover's hall sensor
 user_irqs() {
@@ -110,7 +127,7 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
 	panel_on || break
 	sleep 0.2
 done
-log "panel $(cat "$PANEL" 2>/dev/null)"
+panel_on && log "panel still on" || log "panel off"
 
 # -- sleep until the user wakes it -------------------------------------------
 dark=0
