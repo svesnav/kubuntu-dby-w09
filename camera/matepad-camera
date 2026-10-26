@@ -1,0 +1,506 @@
+#!/usr/bin/python3
+"""MatePad Camera: front and rear camera viewfinder for the MatePad 11.
+
+libcamera (software ISP) delivers the frames; the viewfinder is turned to
+match how the tablet is held (the sensors are mounted at 90/270 degrees to
+the panel) and the front camera is shown mirrored. The rear camera focuses
+with contrast autofocus: the app steps the DW9714 lens through its range,
+measures sharpness in the middle of the picture (or where it was tapped)
+and parks the lens at the sharpest position; it refocuses when the scene
+loses sharpness. Photos go to ~/Pictures/Camera as JPEG, upright.
+"""
+import datetime
+import fcntl
+import glob
+import json
+import mmap
+import os
+import struct
+import subprocess
+import sys
+
+for p in glob.glob("/usr/local/lib/python3*/*-packages") + glob.glob("/usr/local/lib/*/python3*/*-packages"):
+    if os.path.isdir(os.path.join(p, "libcamera")) and p not in sys.path:
+        sys.path.insert(0, p)
+
+import libcamera as lc  # noqa: E402
+import numpy as np  # noqa: E402
+from PyQt6 import QtCore, QtGui, QtWidgets  # noqa: E402
+
+V4L2_CID_FOCUS_ABSOLUTE = 0x009a090a
+VIDIOC_S_CTRL = 0xc008561c
+TORCH = "/sys/class/leds/white:flash"
+# libcamera pixel format -> (QImage format, bytes per pixel, green byte)
+FORMATS = {
+    "RGB888": (QtGui.QImage.Format.Format_BGR888, 3, 1),
+    "BGR888": (QtGui.QImage.Format.Format_RGB888, 3, 1),
+    "XRGB8888": (QtGui.QImage.Format.Format_RGB32, 4, 1),
+    "ARGB8888": (QtGui.QImage.Format.Format_RGB32, 4, 1),
+    "XBGR8888": (QtGui.QImage.Format.Format_RGBX8888, 4, 1),
+    "ABGR8888": (QtGui.QImage.Format.Format_RGBX8888, 4, 1),
+}
+# Viewfinder sizes: the sensors' binned/full modes the software ISP keeps up with.
+SIZES = {"back": (2104, 1560), "front": (1632, 1224)}
+
+
+class MappedBuffer:
+    """A frame buffer's first plane, mapped for reading."""
+
+    def __init__(self, fb):
+        plane = fb.planes[0]
+        self.map = mmap.mmap(plane.fd, plane.offset + plane.length, mmap.MAP_SHARED, mmap.PROT_READ)
+        self.plane = memoryview(self.map)[plane.offset:plane.offset + plane.length]
+
+    def close(self):
+        self.plane.release()
+        self.map.close()
+
+
+def panel_rotation():
+    """Clockwise degrees the built-in panel is turned from its native
+    portrait, from KScreen (Qt on Wayland reports no native orientation)."""
+    try:
+        out = subprocess.run(["kscreen-doctor", "-j"], capture_output=True, text=True, timeout=5).stdout
+        outputs = json.loads(out).get("outputs", [])
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    for o in outputs:
+        if o.get("type") == 7 or str(o.get("name", "")).startswith("DSI"):      # 7: panel
+            # KScreen: 1 none, 2 left (90 counter-clockwise), 4 inverted, 8 right
+            return {1: 0, 2: 270, 4: 180, 8: 90}.get(o.get("rotation"), 0)
+    return None
+
+
+def lens_device():
+    """The rear lens (DW9714) V4L2 subdevice, or None."""
+    for name in glob.glob("/sys/class/video4linux/v4l-subdev*/name"):
+        if open(name).read().startswith("dw9714"):
+            return "/dev/" + os.path.basename(os.path.dirname(name))
+    return None
+
+
+class Lens:
+    """The DW9714, opened on the first move: it only answers on the bus once
+    the sensor streams (on kernels that switch the sensor I/O rail off)."""
+
+    def __init__(self, path):
+        self.path = path
+        self.fd = None
+        self.position = -1
+
+    def move(self, position):
+        position = max(0, min(1023, int(position)))
+        if position == self.position:
+            return
+        try:
+            if self.fd is None:
+                self.fd = os.open(self.path, os.O_RDWR)
+            fcntl.ioctl(self.fd, VIDIOC_S_CTRL, struct.pack("Ii", V4L2_CID_FOCUS_ABSOLUTE, position))
+        except OSError as e:
+            print(f"lens: {e}", file=sys.stderr)
+            if self.fd is not None:
+                os.close(self.fd)
+            self.fd = None
+            return
+        self.position = position
+
+    def close(self):
+        if self.fd is not None:
+            os.close(self.fd)
+            self.fd = None
+
+
+class AutoFocus:
+    """Contrast autofocus for the rear lens.
+
+    A sweep measures sharpness at lens positions: coarse over the whole
+    range, fine around the best one, and a parabola through the best three
+    picks the final position. Frames already in the pipeline when the lens
+    moved were exposed at the old position, so every position waits SETTLE
+    frames (the fine sweep then averages two). Sharpness is the gradient
+    energy of a block-averaged brightness patch (sensor noise averages out),
+    divided by the patch's brightness (auto-exposure steps during a sweep
+    cancel out).
+
+    Focused, it watches the whole picture: when it changes a lot (the
+    tablet points elsewhere) and then holds still, it focuses again. A tap
+    focuses on that spot.
+    """
+
+    SETTLE = 3          # frames in flight when the lens moves (3 buffers)
+    COARSE = 80
+    FINE = 12
+
+    def __init__(self, lens):
+        self.lens = lens
+        self.roi = (0.5, 0.5)
+        self.state = "pending"      # first sweep with the first frame
+
+    def start(self, roi=None):
+        if roi:
+            self.roi = roi
+        self.plan = list(range(0, 1024, self.COARSE)) + [1023]
+        self.scores = {}
+        self.state = "coarse"
+        self.goto(self.plan[0])
+
+    def goto(self, position):
+        self.lens.move(position)
+        self.wait = self.SETTLE
+        self.samples = []
+
+    @staticmethod
+    def luma(frame):
+        return frame[:, :, 0].astype(np.float32) + frame[:, :, 1] + frame[:, :, 2]
+
+    def sharpness(self, frame):
+        h, w = frame.shape[:2]
+        rw, rh = w // 32 * 4, h // 32 * 4      # patch half-size: an eighth of each side
+        cx = min(max(int(self.roi[0] * w), rw), w - rw)
+        cy = min(max(int(self.roi[1] * h), rh), h - rh)
+        patch = self.luma(frame[cy - rh:cy + rh, cx - rw:cx + rw])
+        ph, pw = patch.shape
+        blocks = patch[:ph // 4 * 4, :pw // 4 * 4].reshape(ph // 4, 4, pw // 4, 4).mean(axis=(1, 3))
+        gx = np.diff(blocks, axis=1)
+        gy = np.diff(blocks, axis=0)
+        level = blocks.mean() + 1.0
+        return float(((gx * gx).mean() + (gy * gy).mean()) / (level * level))
+
+    def thumbnail(self, frame):
+        h, w = frame.shape[:2]
+        t = self.luma(frame[::max(1, h // 24), ::max(1, w // 32)])
+        return t / (t.mean() + 1.0)
+
+    def best_position(self):
+        positions = sorted(self.scores)
+        best = max(positions, key=self.scores.get)
+        i = positions.index(best)
+        if 0 < i < len(positions) - 1:
+            p0, p1, p2 = positions[i - 1], best, positions[i + 1]
+            s0, s1, s2 = self.scores[p0], self.scores[p1], self.scores[p2]
+            d = (p2 - p0) / 2
+            den = s0 - 2 * s1 + s2
+            if den < 0:
+                return best + max(-d, min(d, d * (s0 - s2) / (2 * den)))
+        return best
+
+    def frame(self, frame):
+        if self.state == "pending":
+            self.start()
+            return
+        if self.wait:
+            self.wait -= 1
+            return
+        if self.state in ("coarse", "fine"):
+            self.samples.append(self.sharpness(frame))
+            if len(self.samples) < (1 if self.state == "coarse" else 2):
+                return
+            self.scores[self.lens.position] = sum(self.samples) / len(self.samples)
+            self.plan.pop(0)
+            if self.plan:
+                self.goto(self.plan[0])
+                return
+            best = self.best_position()
+            if self.state == "coarse":
+                lo, hi = max(0, int(best) - 3 * self.FINE), min(1023, int(best) + 3 * self.FINE)
+                self.plan = list(range(lo, hi + 1, self.FINE))
+                self.scores = {}
+                self.state = "fine"
+                self.goto(self.plan[0])
+            else:
+                self.goto(best)
+                self.state = "settle"
+        elif self.state == "settle":
+            self.reference = self.previous = self.thumbnail(frame)
+            self.moved = False
+            self.still = 0
+            self.state = "watch"
+        elif self.state == "watch":
+            thumb = self.thumbnail(frame)
+            if np.abs(thumb - self.reference).mean() > 0.2:
+                self.moved = True
+            if self.moved:
+                calm = np.abs(thumb - self.previous).mean() < 0.04
+                self.still = self.still + 1 if calm else 0
+                if self.still >= 10:
+                    self.start((0.5, 0.5))
+            self.previous = thumb
+
+    @property
+    def busy(self):
+        return self.state in ("pending", "coarse", "fine", "settle")
+
+
+class Viewfinder(QtWidgets.QWidget):
+    tapped = QtCore.pyqtSignal(float, float)
+
+    def __init__(self):
+        super().__init__()
+        self.image = None
+        self.angle = 0
+        self.mirror = False
+        self.focusing = False
+        self.focus_point = (0.5, 0.5)
+        self.flash = 0
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_OpaquePaintEvent)
+
+    def transform(self):
+        """Image coordinates -> widget coordinates."""
+        iw, ih = self.image.width(), self.image.height()
+        rw, rh = (ih, iw) if self.angle in (90, 270) else (iw, ih)
+        scale = min(self.width() / rw, self.height() / rh)
+        t = QtGui.QTransform()
+        t.translate(self.width() / 2, self.height() / 2)
+        t.scale(scale, scale)
+        if self.mirror:
+            t.scale(-1, 1)
+        t.rotate(self.angle)
+        t.translate(-iw / 2, -ih / 2)
+        return t
+
+    def paintEvent(self, event):
+        p = QtGui.QPainter(self)
+        p.fillRect(self.rect(), QtGui.QColor("black"))
+        if self.image is not None:
+            t = self.transform()
+            p.setTransform(t)
+            p.drawImage(0, 0, self.image)
+            p.resetTransform()
+            if self.focusing:
+                fx, fy = self.focus_point
+                c = t.map(QtCore.QPointF(fx * self.image.width(), fy * self.image.height()))
+                p.setPen(QtGui.QPen(QtGui.QColor(255, 210, 0), 3))
+                p.drawRect(QtCore.QRectF(c.x() - 40, c.y() - 40, 80, 80))
+        if self.flash:
+            p.fillRect(self.rect(), QtGui.QColor(255, 255, 255, self.flash))
+        p.end()
+
+    def mousePressEvent(self, event):
+        if self.image is None:
+            return
+        inv, ok = self.transform().inverted()
+        if not ok:
+            return
+        pt = inv.map(event.position())
+        x, y = pt.x() / self.image.width(), pt.y() / self.image.height()
+        if 0 <= x <= 1 and 0 <= y <= 1:
+            self.focus_point = (x, y)
+            self.tapped.emit(x, y)
+
+
+class Camera(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Camera")
+        self.cm = lc.CameraManager.singleton()
+        self.cameras = sorted(self.cm.cameras, key=lambda c: self.location(c) != "back")
+        if not self.cameras:
+            raise SystemExit("no cameras")
+        self.view = Viewfinder()
+        self.view.tapped.connect(self.focus_at)
+        self.setCentralWidget(self.view)
+        self.buttons = []
+        self.shutter = self.button("", self.take_photo, 88)
+        self.shutter.setStyleSheet("QPushButton{border-radius:44px;border:6px solid white;"
+                                   "background:rgba(255,255,255,90);}"
+                                   "QPushButton:pressed{background:white;}")
+        self.switch = self.button("⟲", self.switch_camera, 64)
+        self.torch = self.button("☀", self.toggle_torch, 64)
+        self.notifier = QtCore.QSocketNotifier(self.cm.event_fd, QtCore.QSocketNotifier.Type.Read)
+        self.notifier.activated.connect(self.on_event)
+        self.fade = QtCore.QTimer(self, interval=30, timeout=self.fade_flash)
+        self.cam = None
+        self.af = None
+        self.index = 0
+        screen = QtGui.QGuiApplication.primaryScreen()
+        screen.orientationChanged.connect(lambda _: self.update_angle())
+        self.open_camera(0)
+
+    def button(self, text, slot, size):
+        b = QtWidgets.QPushButton(text, self)
+        b.setFixedSize(size, size)
+        b.setStyleSheet("QPushButton{border-radius:%dpx;background:rgba(0,0,0,110);color:white;"
+                        "font-size:28px;}QPushButton:pressed{background:rgba(255,255,255,120);}" % (size // 2))
+        b.clicked.connect(slot)
+        self.buttons.append(b)
+        return b
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w, h = self.width(), self.height()
+        if w >= h:      # landscape: buttons in a column on the right
+            x = w - 70
+            self.shutter.move(x - 44, h // 2 - 44)
+            self.switch.move(x - 32, h // 2 - 44 - 110)
+            self.torch.move(x - 32, h // 2 + 44 + 46)
+        else:           # portrait: buttons in a row at the bottom
+            y = h - 70
+            self.shutter.move(w // 2 - 44, y - 44)
+            self.switch.move(w // 2 + 44 + 46, y - 32)
+            self.torch.move(w // 2 - 44 - 110, y - 32)
+        # the panel turned (window shape changed): turn the viewfinder after
+        QtCore.QTimer.singleShot(300, self.update_angle)
+
+    @staticmethod
+    def location(cam):
+        loc = cam.properties.get(lc.properties.Location)
+        return {lc.properties.LocationEnum.Front: "front", lc.properties.LocationEnum.Back: "back"}.get(loc, "back")
+
+    def update_angle(self):
+        if not self.cam:
+            return
+        screen_angle = panel_rotation()
+        if screen_angle is None:        # no KScreen: guess from the window shape
+            screen_angle = 90 if self.width() > self.height() else 0
+        rotation = self.cam.properties.get(lc.properties.Rotation, 0)
+        # libcamera's Rotation: degrees to turn the picture (clockwise) for
+        # an upright view in the device's natural (portrait) orientation;
+        # the screen turned by screen_angle with the tablet.
+        sign = 1 if self.view.mirror else -1
+        self.view.angle = (rotation + sign * screen_angle) % 360
+        self.view.update()
+
+    # ---- camera session
+
+    def open_camera(self, index):
+        self.close_camera()
+        self.index = index
+        cam = self.cameras[index]
+        cam.acquire()
+        loc = self.location(cam)
+        cfg = cam.generate_configuration([lc.StreamRole.Viewfinder])
+        sc = cfg.at(0)
+        sc.pixel_format = lc.PixelFormat("RGB888")
+        sc.size = lc.Size(*SIZES[loc])
+        sc.buffer_count = 3        # fewer frames in flight: faster autofocus
+        cfg.validate()
+        if str(sc.pixel_format) not in FORMATS:
+            sc.pixel_format = lc.PixelFormat("XRGB8888")
+            cfg.validate()
+        cam.configure(cfg)
+        self.stream = sc.stream
+        self.size = (sc.size.width, sc.size.height)
+        self.stride = sc.stride
+        self.qformat, self.bpp, self.green = FORMATS[str(sc.pixel_format)]
+        print(f"{cam.id}: {sc.pixel_format} {self.size[0]}x{self.size[1]} stride {self.stride}", file=sys.stderr)
+        self.allocator = lc.FrameBufferAllocator(cam)
+        self.allocator.allocate(self.stream)
+        self.maps = {}
+        self.requests = []
+        for buf in self.allocator.buffers(self.stream):
+            req = cam.create_request()
+            req.add_buffer(self.stream, buf)
+            self.maps[buf] = MappedBuffer(buf)
+            self.requests.append(req)
+        self.cam = cam
+        self.view.mirror = loc == "front"
+        lens = lens_device() if loc == "back" else None
+        self.af = AutoFocus(Lens(lens)) if lens else None
+        self.view.focusing = bool(self.af)
+        self.view.focus_point = (0.5, 0.5)
+        self.torch.setVisible(loc == "back" and os.access(TORCH + "/brightness", os.W_OK))
+        self.update_angle()
+        cam.start()
+        for req in self.requests:
+            cam.queue_request(req)
+
+    def close_camera(self):
+        if not self.cam:
+            return
+        if self.af:
+            self.af.lens.close()
+            self.af = None
+        self.cam.stop()
+        self.requests = []
+        for m in self.maps.values():
+            m.close()
+        self.maps = {}
+        self.allocator = None
+        self.cam.release()
+        self.cam = None
+        self.set_torch(False)
+
+    def on_event(self):
+        for req in self.cm.get_ready_requests():
+            if req.status != lc.Request.Status.Complete or not self.cam:
+                continue
+            buf = next(iter(req.buffers.values()))
+            plane = self.maps[buf].plane
+            w, h = self.size
+            data = bytes(plane[:self.stride * h])
+            img = QtGui.QImage(data, w, h, self.stride, self.qformat)
+            self.view.image = img.copy()
+            if self.af:
+                frame = np.frombuffer(data, np.uint8).reshape(h, self.stride)[:, :w * self.bpp]
+                frame = frame.reshape(h, w, self.bpp)
+                self.af.frame(frame)
+                self.view.focusing = self.af.busy
+                self.view.focus_point = self.af.roi
+            self.view.update()
+            req.reuse()
+            self.cam.queue_request(req)
+
+    # ---- actions
+
+    def focus_at(self, x, y):
+        if self.af:
+            self.af.start((x, y))
+            self.view.focusing = True
+
+    def switch_camera(self):
+        self.open_camera((self.index + 1) % len(self.cameras))
+
+    def take_photo(self):
+        img = self.view.image
+        if img is None:
+            return
+        # the photo as the viewfinder shows it: upright (front camera mirrored)
+        t = QtGui.QTransform()
+        if self.view.mirror:
+            t.scale(-1, 1)
+        t.rotate(self.view.angle)
+        photo = img.transformed(t)
+        folder = os.path.join(QtCore.QStandardPaths.writableLocation(
+            QtCore.QStandardPaths.StandardLocation.PicturesLocation), "Camera")
+        os.makedirs(folder, exist_ok=True)
+        name = datetime.datetime.now().strftime("IMG_%Y%m%d_%H%M%S.jpg")
+        photo.save(os.path.join(folder, name), "JPG", 92)
+        self.view.flash = 200
+        self.fade.start()
+
+    def fade_flash(self):
+        self.view.flash = max(0, self.view.flash - 25)
+        self.view.update()
+        if not self.view.flash:
+            self.fade.stop()
+
+    def set_torch(self, on):
+        try:
+            with open(TORCH + "/brightness", "w") as f:
+                f.write(open(TORCH + "/max_brightness").read().strip() if on else "0")
+        except OSError:
+            pass
+
+    def toggle_torch(self):
+        try:
+            on = int(open(TORCH + "/brightness").read()) == 0
+        except OSError:
+            return
+        self.set_torch(on)
+
+    def closeEvent(self, event):
+        self.close_camera()
+        super().closeEvent(event)
+
+
+def main():
+    app = QtWidgets.QApplication(sys.argv)
+    app.setApplicationName("matepad-camera")
+    app.setDesktopFileName("matepad-camera")
+    w = Camera()
+    w.showMaximized()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()
