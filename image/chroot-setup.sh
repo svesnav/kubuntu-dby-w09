@@ -282,11 +282,15 @@ I 755 $S/desktop/osk/matepad-typing-watch /usr/local/sbin/matepad-typing-watch
 I 644 $S/desktop/osk/matepad-typing-watch.service $U/matepad-typing-watch.service
 printf '[Plugins]\nblurEnabled=false\n' > /etc/xdg/kwinrc     # popups: no outline before the slide
 # the on-screen keyboard: KWin shows a virtual keyboard only with one set here
-# (System Settings > Virtual Keyboard); matepad-osk-auto switches it on and off
-printf '[Wayland]\nInputMethod=/usr/share/applications/com.github.maliit.keyboard.desktop\n' >> /etc/xdg/kwinrc
-# ...in Maliit's dark theme (its languages: the installer, from the layouts)
-printf "[org.maliit.keyboard.maliit]\ntheme='BreezeDark'\n" > /usr/share/glib-2.0/schemas/80-matepad-maliit.gschema.override
-glib-compile-schemas /usr/share/glib-2.0/schemas
+# (System Settings > Virtual Keyboard); matepad-osk-auto switches it on and off.
+# Maliit 2.3 draws Qt Quick Controls keys: started by KWin it has no style set
+# and stays light, so the launcher sets Plasma's (org.kde.desktop), which
+# follows the colour scheme (dark keys with Breeze Dark). Its languages: the
+# installer, from the keyboard layouts.
+I 644 $S/desktop/osk/matepad-maliit-keyboard.desktop /usr/share/applications/matepad-maliit-keyboard.desktop
+printf '[Wayland]
+InputMethod=/usr/share/applications/matepad-maliit-keyboard.desktop
+' >> /etc/xdg/kwinrc
 cat > /usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
 # KWin's OpenGL compositor on the Adreno 650 (freedreno).
