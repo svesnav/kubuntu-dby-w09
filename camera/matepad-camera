@@ -215,19 +215,30 @@ class AutoFocus:
         elif self.state == "settle":
             self.reference = self.previous = self.thumbnail(frame)
             self.focused = self.level = self.sharpness(frame)
+            self.age = 0
+            self.changed = 0
             self.moved = False
             self.still = 0
             self.state = "watch"
         elif self.state == "watch":
-            # Refocus once the view has changed (the tablet points elsewhere,
-            # or the picture went soft) and then holds still.
+            # Refocus once the view has clearly changed for a while (the
+            # tablet points elsewhere, or the picture went soft) and then
+            # holds still. Hand shake and noise must not trigger it.
+            self.age += 1
             thumb = self.thumbnail(frame)
-            self.level = 0.8 * self.level + 0.2 * self.sharpness(frame)
-            if np.abs(thumb - self.reference).mean() > 0.12 or self.level < 0.5 * self.focused:
-                self.moved = True
-            calm = np.abs(thumb - self.previous).mean() < 0.03
+            sharp = self.sharpness(frame)
+            self.level = 0.9 * self.level + 0.1 * sharp
+            if self.age <= 10:          # reference sharpness: the first frames
+                self.focused = self.level = (self.focused * self.age + sharp) / (self.age + 1)
+            calm = np.abs(thumb - self.previous).mean() < 0.05
             self.still = self.still + 1 if calm else 0
             self.previous = thumb
+            if self.age < 45:           # just focused: leave it alone
+                return
+            differs = np.abs(thumb - self.reference).mean() > 0.16 or self.level < 0.7 * self.focused
+            self.changed = self.changed + 1 if differs else 0
+            if self.changed >= 10:
+                self.moved = True
             if self.moved and self.still >= 8:
                 self.start((0.5, 0.5))
 
