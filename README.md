@@ -4,6 +4,8 @@ Stock Kubuntu 24.04 LTS (Plasma 5.27) for the Huawei MatePad 11 (DBY-W09,
 Snapdragon 865), running from the microSD card on mainline Linux 7.0. This
 repository builds the image and holds the hardware support services.
 
+![Kubuntu 24.04 running on the Huawei MatePad 11 DBY-W09](screenshots/kubuntu-24.04-matepad-11-dby-w09.png)
+
 | Repository | Role |
 | --- | --- |
 | [linux-dby-w09](https://github.com/svesnav/linux-dby-w09) | kernel, device tree, boot bundle |
