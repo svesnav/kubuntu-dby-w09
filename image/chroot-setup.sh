@@ -284,6 +284,9 @@ printf '[Plugins]\nblurEnabled=false\n' > /etc/xdg/kwinrc     # popups: no outli
 # the on-screen keyboard: KWin shows a virtual keyboard only with one set here
 # (System Settings > Virtual Keyboard); matepad-osk-auto switches it on and off
 printf '[Wayland]\nInputMethod=/usr/share/applications/com.github.maliit.keyboard.desktop\n' >> /etc/xdg/kwinrc
+# ...in Maliit's dark theme (its languages: the installer, from the layouts)
+printf "[org.maliit.keyboard.maliit]\ntheme='BreezeDark'\n" > /usr/share/glib-2.0/schemas/80-matepad-maliit.gschema.override
+glib-compile-schemas /usr/share/glib-2.0/schemas
 cat > /usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
 # KWin's OpenGL compositor on the Adreno 650 (freedreno).
