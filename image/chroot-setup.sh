@@ -50,7 +50,7 @@ $APT install kubuntu-desktop firefox sddm oem-config oem-config-kde \
 	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg xserver-xorg-input-libinput \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \
-	maliit-keyboard ddcutil ddcui upower i2c-tools
+	maliit-keyboard ddcutil ddcui upower i2c-tools 	python3-pyqt6 python3-numpy libyaml-0-2 libdw1t64 libevent-2.1-7t64 libepoxy0 libtiff6
 # Kubuntu's defaults name the Firefox snap (firefox_firefox.desktop), which
 # leaves the panel's preferred://browser launcher dead, and Firefox's own
 # "make default" then writes a hidden, icon-less userapp-Firefox-*.desktop.
@@ -104,6 +104,23 @@ dpkg-divert --list | grep -q qtwayland-original ||
 	install -d /usr/lib/matepad/qtwayland-original &&
 	dpkg-divert --package matepad --rename --divert /usr/lib/matepad/qtwayland-original/libQt5WaylandClient.so.5.15.13 --add $L &&
 	strip --strip-unneeded -o $L lib/libQt5WaylandClient.so.5.15.13 && apt-mark hold libqt5waylandclient5)
+
+# libcamera 0.7.2 for the cameras (camera/): software ISP with GPU debayer,
+# Python bindings for the Camera app, gain models for the OV13B10 and Hi-846
+# (camera/libcamera-sensor-helpers.py). Ubuntu's 0.2 has no software ISP, so
+# it goes to /usr/local; skipped once installed.
+LIBCAMERA_DEPS="libyaml-dev python3-yaml python3-ply python3-jinja2 libgnutls28-dev libudev-dev
+	libevent-dev libdw-dev libdrm-dev libjpeg-dev libtiff-dev libepoxy-dev libegl-dev libgles-dev
+	pybind11-dev python3-dev"
+[ -x /usr/local/bin/cam ] ||
+($APT install $LIBCAMERA_DEPS &&
+	git clone -q --depth 1 --branch v0.7.2 https://git.libcamera.org/libcamera/libcamera.git $B/libcamera &&
+	cd $B/libcamera && python3 $S/camera/libcamera-sensor-helpers.py src/ipa/libipa/camera_sensor_helper.cpp &&
+	meson setup build --prefix=/usr/local --buildtype=release -Dpipelines=simple -Dipas=simple 		-Dcam=enabled -Dqcam=disabled -Dgstreamer=disabled -Dv4l2=false -Ddocumentation=disabled 		-Dtest=false -Dlc-compliance=disabled -Dpycamera=enabled >/dev/null &&
+	ninja -C build >/dev/null && ninja -C build install >/dev/null && ldconfig &&
+	apt-mark auto $LIBCAMERA_DEPS >/dev/null)
+[ -x /usr/local/bin/cam ]
+python3 -c "import sys; sys.path.insert(0, '/usr/local/lib/python3/dist-packages'); import libcamera"
 
 apt-mark auto $BUILD_DEPS >/dev/null
 $APT autoremove --purge
@@ -198,6 +215,11 @@ I 644 $S/pen/matepad-pen-bluez.service $U/matepad-pen-bluez.service
 # once by the address the installer copied from HarmonyOS (/etc/matepad/pen-mac)
 I 644 $S/pen/matepad-pen-pair.py /usr/local/lib/matepad-pen/matepad-pen-pair.py
 I 644 $S/pen/matepad-pen-pair.service $U/matepad-pen-pair.service
+# cameras: the Camera app (viewfinder turned with the panel, rear autofocus,
+# photos to ~/Pictures/Camera) and access to the camera devices for the user
+I 755 $S/camera/matepad-camera /usr/local/bin/matepad-camera
+I 644 $S/camera/matepad-camera.desktop /usr/share/applications/matepad-camera.desktop
+I 644 $S/camera/70-matepad-camera.rules /etc/udev/rules.d/70-matepad-camera.rules
 # flashlight: the rear flash LED in torch mode
 I 755 $S/flashlight/matepad-flashlight /usr/local/bin/matepad-flashlight
 I 644 $S/flashlight/matepad-flashlight.desktop /usr/share/applications/matepad-flashlight.desktop
