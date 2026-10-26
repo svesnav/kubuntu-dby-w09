@@ -57,8 +57,8 @@ tables and Wi-Fi MAC on the first boot.
 | `power/` | charging LED (red charging, green full) |
 | `camera/` | **Camera** app for both cameras (viewfinder turned with the panel, rear contrast autofocus on the DW9714 lens, tap to focus, photos to `~/Pictures/Camera`, torch), libcamera 0.7.2 with gain models for the OV13B10/Hi-846, camera device access for the user |
 | `flashlight/` | **Flashlight** in the menu: the rear flash LED as a torch (`matepad-flashlight`, udev rule for the user) |
-| `sleep/` | Sleep button suspends; cover and power key blank the screen; suspend hook and PowerDevil profile |
-| `desktop/` | tray relayout after resume, plasmashell guard, on-screen keyboard switching, patched Qt Wayland client (`qt/`) |
+| `sleep/` | Sleep button suspends; cover and power key blank the screen (the cover's lid switch goes through `matepad-volkeys`); suspend hook and PowerDevil profile |
+| `desktop/` | tray relayout after resume, plasmashell guard, patched Qt Wayland client (`qt/`); on-screen keyboard (`osk/`): Maliit in the Plasma style (follows light/dark), shown only while no keyboard is in use (folio docked, or another keyboard typed on in the last 5 minutes) |
 | `boot-switch/` | **Restart to HarmonyOS**: saves the Linux boot images to `/cache/linux70`, writes the verified stock ones, reboots |
 
 `image/chroot-setup.sh` builds and installs all of them into the image.
