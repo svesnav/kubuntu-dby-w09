@@ -50,7 +50,8 @@ $APT install kubuntu-desktop firefox sddm oem-config oem-config-kde \
 	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg xserver-xorg-input-libinput \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \
-	maliit-keyboard ddcutil ddcui upower i2c-tools 	python3-pyqt6 python3-numpy libyaml-0-2 libdw1t64 libevent-2.1-7t64 libepoxy0 libtiff6
+	maliit-keyboard ddcutil ddcui upower i2c-tools \
+	python3-pyqt6 python3-numpy libyaml-0-2 libdw1t64 libevent-2.1-7t64 libepoxy0 libtiff6
 # Kubuntu's defaults name the Firefox snap (firefox_firefox.desktop), which
 # leaves the panel's preferred://browser launcher dead, and Firefox's own
 # "make default" then writes a hidden, icon-less userapp-Firefox-*.desktop.
@@ -288,9 +289,7 @@ printf '[Plugins]\nblurEnabled=false\n' > /etc/xdg/kwinrc     # popups: no outli
 # follows the colour scheme (dark keys with Breeze Dark). Its languages: the
 # installer, from the keyboard layouts.
 I 644 $S/desktop/osk/matepad-maliit-keyboard.desktop /usr/share/applications/matepad-maliit-keyboard.desktop
-printf '[Wayland]
-InputMethod=/usr/share/applications/matepad-maliit-keyboard.desktop
-' >> /etc/xdg/kwinrc
+printf '[Wayland]\nInputMethod=/usr/share/applications/matepad-maliit-keyboard.desktop\n' >> /etc/xdg/kwinrc
 cat > /usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
 # KWin's OpenGL compositor on the Adreno 650 (freedreno).
