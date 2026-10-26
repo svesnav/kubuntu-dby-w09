@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Camera
+GenericName=Camera
+Comment=Front and rear camera with autofocus; photos go to Pictures/Camera
+Exec=/usr/local/bin/matepad-camera
+Icon=camera-photo
+Terminal=false
+Categories=AudioVideo;Video;Graphics;Photography;
+Keywords=camera;photo;webcam;selfie;picture;
+StartupWMClass=matepad-camera

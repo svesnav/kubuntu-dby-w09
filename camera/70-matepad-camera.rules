@@ -1,0 +1,8 @@
+# Cameras for the logged-in user: libcamera opens the media controller and
+# the V4L2 subdevices (sensors, lens), and its software ISP allocates DMA
+# buffers. Only the system heap: libcamera opens the first heap it may, and
+# the "reserved" CMA region is too small for frames.
+SUBSYSTEM=="media", TAG+="uaccess"
+SUBSYSTEM=="video4linux", KERNEL=="v4l-subdev*", TAG+="uaccess"
+SUBSYSTEM=="dma_heap", KERNEL=="system", TAG+="uaccess"
+KERNEL=="udmabuf", TAG+="uaccess"
