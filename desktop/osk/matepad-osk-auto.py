@@ -8,12 +8,18 @@ Plasma session (XDG autostart) and switches KWin's virtual keyboard
 Keyboard switch) off while a keyboard is attached and on again when it is
 gone. A keyboard is an input device with letter keys and a space bar
 (the MatePad's own buttons, pen, touch screen and headset jack have none).
+
+The HUAWEI MatePad Keyboard folio stays connected over Bluetooth while it is
+folded behind the tablet; it only counts while the tablet stands in its
+dock. The dock's hall sensor is the kernel's tablet-mode switch, which KWin
+reports (org.kde.KWin.TabletModeManager): tablet mode = folio not in use.
 """
 import subprocess
 import sys
 import time
 
 LETTERS = (16, 30, 44, 57)      # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
+FOLIO = "HUAWEI MatePad Keyboard"
 
 
 def keyboards():
@@ -35,10 +41,17 @@ def keyboards():
     return found
 
 
-def kwin(*args):
-    r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.kde.KWin", "/VirtualKeyboard"]
+def kwin(*args, path="/VirtualKeyboard"):
+    r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.kde.KWin", path]
                        + list(args), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10)
     return r.stdout if r.returncode == 0 else None
+
+
+def tablet_mode():
+    """KWin's tablet mode: on while the folio is not in its dock."""
+    out = kwin("org.freedesktop.DBus.Properties.Get", "string:org.kde.KWin.TabletModeManager",
+               "string:tabletMode", path="/org/kde/KWin")
+    return out is not None and "boolean true" in out
 
 
 def prop(name):
@@ -69,6 +82,8 @@ def main():
     applied = None
     while True:
         kbd = keyboards()
+        if kbd and all(k == FOLIO for k in kbd) and tablet_mode():
+            kbd = []            # only the folio, and folded away
         want = not kbd
         if want != applied:
             if set_osk(want):
