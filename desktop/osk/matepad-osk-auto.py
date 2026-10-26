@@ -65,17 +65,10 @@ def set_prop(name, value):
 
 
 def set_osk(enabled):
-    if not set_prop("enabled", enabled):
-        return False
-    if enabled:
-        # A text field that already has focus does not ask again: show the
-        # keyboard for it now (KWin may need a moment to restart Maliit).
-        for _ in range(12):
-            time.sleep(0.25)
-            if not prop("activeClientSupportsTextInput") or prop("visible"):
-                break
-            set_prop("active", True)
-    return True
+    # Only the switch: forcing the keyboard up ("active") for a text field
+    # that already had focus, while KWin was restarting Maliit, crashed
+    # plasmashell (its Wayland connection broke). Tapping the field shows it.
+    return set_prop("enabled", enabled)
 
 
 def main():
