@@ -293,17 +293,60 @@ static void check_resume(void)
 }
 
 /* KWin's DPMS state of the panel, as the DRM connector reports it. */
+/*
+ * Is the built-in panel off? Linux 7.0 (atomic msm): its connector's "dpms"
+ * file stays "On" whatever KWin does, so read the DRM state in debugfs: the
+ * CRTC driving DSI-1 must be active. The 4.19 kernel: card0-DSI-1/dpms.
+ * -1: unknown.
+ */
 static int panel_off(void)
 {
-	char buf[16] = { 0 };
-	FILE *f = fopen("/sys/class/drm/card0-DSI-1/dpms", "r");
+	static const char *const states[] = {
+		"/sys/kernel/debug/dri/ae01000.display-controller/state",
+		"/sys/kernel/debug/dri/1/state", "/sys/kernel/debug/dri/0/state",
+	};
+	char line[256], crtc[64] = "", dsi_crtc[64] = "";
+	int active = -1, dsi = 0;
+	unsigned i;
+	FILE *f = NULL;
 
+	for (i = 0; i < sizeof(states) / sizeof(states[0]) && !f; i++)
+		f = fopen(states[i], "r");
+	if (f) {
+		char act[16][64];
+		int val[16], n = 0;
+
+		while (fgets(line, sizeof(line), f)) {
+			char name[64];
+
+			if (sscanf(line, "crtc[%*d]: %63s", name) == 1) {
+				snprintf(crtc, sizeof(crtc), "%s", name);
+			} else if (!strncmp(line, "\tactive=", 8) && crtc[0] && n < 16) {
+				snprintf(act[n], sizeof(act[n]), "%s", crtc);
+				val[n++] = atoi(line + 8);
+			} else if (sscanf(line, "connector[%*d]: %63s", name) == 1) {
+				dsi = !strcmp(name, "DSI-1");
+				crtc[0] = 0;
+			} else if (dsi && sscanf(line, "\tcrtc=%63s", dsi_crtc) == 1) {
+				dsi = 0;
+			}
+		}
+		fclose(f);
+		if (!strcmp(dsi_crtc, "(null)"))
+			return 1;
+		for (i = 0; i < (unsigned)n; i++)
+			if (!strcmp(act[i], dsi_crtc))
+				active = val[i];
+		if (active >= 0)
+			return !active;
+	}
+	f = fopen("/sys/class/drm/card0-DSI-1/dpms", "r");
 	if (!f)
-		return 0;
-	if (!fgets(buf, sizeof(buf), f))
-		buf[0] = 0;
+		return -1;
+	if (!fgets(line, sizeof(line), f))
+		line[0] = 0;
 	fclose(f);
-	return !strncmp(buf, "Off", 3);
+	return !strncmp(line, "Off", 3);
 }
 
 /* -- magnetic cover ------------------------------------------------------ */
@@ -337,11 +380,11 @@ static void report_cover(int closed, int act)
 	write_cover(closed);
 	if (!act)
 		return;
-	off = panel_off();
-	if (closed && !off) {
+	off = panel_off();      /* -1 unknown: close turns off, open wakes */
+	if (closed && off != 1) {
 		tap(KEY_POWER);
 		fprintf(stderr, "cover closed: power key (screens off)\n");
-	} else if (!closed && off) {
+	} else if (!closed && off != 0) {
 		tap(KEY_WAKEUP);
 		fprintf(stderr, "cover opened: wake-up key (screens on)\n");
 	} else {
@@ -684,7 +727,7 @@ int main(int argc, char **argv)
 						/* the press that woke the system, once the
 						 * sleep hook has turned the screens on (while
 						 * they are off, KWin eats it and wakes them) */
-						if (ev[k].value == 1 && !panel_off() &&
+						if (ev[k].value == 1 && panel_off() == 0 &&
 						    now_clock(CLOCK_MONOTONIC) - resumed_at < 2.0) {
 							power_drop = 1;
 							fprintf(stderr, "power key right after resume: dropped\n");
