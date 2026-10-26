@@ -167,8 +167,10 @@ class AutoFocus:
         return float(((gx * gx).mean() + (gy * gy).mean()) / (level * level))
 
     def thumbnail(self, frame):
-        h, w = frame.shape[:2]
-        t = self.luma(frame[::max(1, h // 24), ::max(1, w // 32)])
+        """32x24 block averages of the whole picture, relative to its mean."""
+        f = self.luma(frame[::4, ::4])
+        bh, bw = f.shape[0] // 24, f.shape[1] // 32
+        t = f[:24 * bh, :32 * bw].reshape(24, bh, 32, bw).mean(axis=(1, 3))
         return t / (t.mean() + 1.0)
 
     def best_position(self):
@@ -212,19 +214,22 @@ class AutoFocus:
                 self.state = "settle"
         elif self.state == "settle":
             self.reference = self.previous = self.thumbnail(frame)
+            self.focused = self.level = self.sharpness(frame)
             self.moved = False
             self.still = 0
             self.state = "watch"
         elif self.state == "watch":
+            # Refocus once the view has changed (the tablet points elsewhere,
+            # or the picture went soft) and then holds still.
             thumb = self.thumbnail(frame)
-            if np.abs(thumb - self.reference).mean() > 0.2:
+            self.level = 0.8 * self.level + 0.2 * self.sharpness(frame)
+            if np.abs(thumb - self.reference).mean() > 0.12 or self.level < 0.5 * self.focused:
                 self.moved = True
-            if self.moved:
-                calm = np.abs(thumb - self.previous).mean() < 0.04
-                self.still = self.still + 1 if calm else 0
-                if self.still >= 10:
-                    self.start((0.5, 0.5))
+            calm = np.abs(thumb - self.previous).mean() < 0.03
+            self.still = self.still + 1 if calm else 0
             self.previous = thumb
+            if self.moved and self.still >= 8:
+                self.start((0.5, 0.5))
 
     @property
     def busy(self):
