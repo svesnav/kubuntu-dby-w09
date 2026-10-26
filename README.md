@@ -30,7 +30,8 @@ repository builds the image and holds the hardware support services.
 
 - `kubuntu-desktop` with Firefox from Mozilla's APT repository (no snaps; the
   default browser),
-  Xournal++, the Maliit on-screen keyboard, `ddcutil`/`ddcui`.
+  Xournal++, the Maliit on-screen keyboard, `ddcutil`/`ddcui`, the Camera app
+  (libcamera 0.7.2).
 - Plasma on Wayland, SDDM on Wayland, KWin with the OpenGL compositor and the
   blur effect off (popups slide in without a frame of outline).
 - Kernel modules from the linux-dby-w09 release.
