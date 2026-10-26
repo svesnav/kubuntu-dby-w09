@@ -1,0 +1,84 @@
+#!/usr/bin/python3
+"""matepad-typing-watch: when was a hardware keyboard last typed on?
+
+Writes the time of the last letter, digit or space key press on any keyboard
+(an input device with letter keys and a space bar) to /run/matepad-typing,
+with the device's name: "<unix time> <name>", at most once a second. Which
+keys were pressed is not recorded. matepad-osk-auto (in the session, which
+cannot read input devices) keeps the on-screen keyboard off only while a
+keyboard was typed on lately, so a wireless receiver that also has a mouse,
+or a keyboard lying unused, does not block it. The devices are not grabbed.
+"""
+import fcntl
+import glob
+import os
+import select
+import struct
+import time
+
+OUT = "/run/matepad-typing"
+EVENT = struct.Struct("llHHi")
+EV_KEY = 1
+LETTERS = (16, 30, 44, 57)      # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
+TYPING = set(range(2, 12)) | set(range(16, 26)) | set(range(30, 39)) | set(range(44, 51)) | {57}
+EVIOCGNAME = 0x82004506          # _IOC(READ, 'E', 0x06, 512)
+EVIOCGBIT_KEY = 0x80604521       # _IOC(READ, 'E', 0x21 + EV_KEY, 96)
+
+
+def is_keyboard(fd):
+    bits = bytearray(96)
+    try:
+        fcntl.ioctl(fd, EVIOCGBIT_KEY, bits)
+    except OSError:
+        return False
+    return all(bits[k // 8] >> (k % 8) & 1 for k in LETTERS)
+
+
+def name_of(fd):
+    buf = bytearray(512)
+    try:
+        fcntl.ioctl(fd, EVIOCGNAME, buf)
+    except OSError:
+        return "?"
+    return buf.split(b"\0", 1)[0].decode(errors="replace")
+
+
+def main():
+    devices = {}                # path -> (fd, name)
+    last_scan = 0
+    last_write = 0
+    while True:
+        if time.monotonic() - last_scan > 3:
+            last_scan = time.monotonic()
+            for path in glob.glob("/dev/input/event*"):
+                if path in devices:
+                    continue
+                try:
+                    fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+                except OSError:
+                    continue
+                if is_keyboard(fd):
+                    devices[path] = (fd, name_of(fd))
+                else:
+                    os.close(fd)
+        fds = {fd: path for path, (fd, _) in devices.items()}
+        ready, _, _ = select.select(list(fds), [], [], 3)
+        for fd in ready:
+            path = fds[fd]
+            try:
+                data = os.read(fd, EVENT.size * 64)
+            except OSError:         # unplugged
+                os.close(fd)
+                del devices[path]
+                continue
+            typed = any(t == EV_KEY and v == 1 and c in TYPING
+                        for _, _, t, c, v in EVENT.iter_unpack(data[:len(data) // EVENT.size * EVENT.size]))
+            if typed and time.time() - last_write >= 1:
+                last_write = time.time()
+                with open(OUT + ".tmp", "w") as f:
+                    f.write("%d %s\n" % (int(last_write), devices[path][1]))
+                os.replace(OUT + ".tmp", OUT)
+
+
+if __name__ == "__main__":
+    main()

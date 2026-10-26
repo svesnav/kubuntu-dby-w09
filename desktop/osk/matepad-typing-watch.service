@@ -1,0 +1,10 @@
+[Unit]
+Description=MatePad: note when a hardware keyboard was last typed on (for the on-screen keyboard)
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/sbin/matepad-typing-watch
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
