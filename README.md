@@ -52,6 +52,7 @@ tables and Wi-Fi MAC on the first boot.
 | `pen/` | M-Pencil: pairing by the address from HarmonyOS (it does not advertise as discoverable), pressure and buttons over BLE (GATT helper, hidraw rule) |
 | `usb/` | HDMI/DP audio, DisplayPort EDID recovery, DDC/CI access for `ddcutil`, docked rotation |
 | `power/` | charging LED (red charging, green full) |
+| `camera/` | **Camera** app for both cameras (viewfinder turned with the panel, rear contrast autofocus on the DW9714 lens, tap to focus, photos to `~/Pictures/Camera`, torch), libcamera 0.7.2 with gain models for the OV13B10/Hi-846, camera device access for the user |
 | `flashlight/` | **Flashlight** in the menu: the rear flash LED as a torch (`matepad-flashlight`, udev rule for the user) |
 | `sleep/` | Sleep button suspends; cover and power key blank the screen; suspend hook and PowerDevil profile |
 | `desktop/` | tray relayout after resume, plasmashell guard, on-screen keyboard switching, patched Qt Wayland client (`qt/`) |
