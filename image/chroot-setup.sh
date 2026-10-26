@@ -278,6 +278,8 @@ I 755 $S/desktop/matepad-plasmashell-guard.sh /usr/local/bin/matepad-plasmashell
 I 644 $S/desktop/matepad-plasmashell-guard.desktop /etc/xdg/autostart/matepad-plasmashell-guard.desktop
 I 755 $S/desktop/osk/matepad-osk-auto.py /usr/local/bin/matepad-osk-auto
 I 644 $S/desktop/osk/matepad-osk-auto.desktop /etc/xdg/autostart/matepad-osk-auto.desktop
+I 755 $S/desktop/osk/matepad-typing-watch /usr/local/sbin/matepad-typing-watch
+I 644 $S/desktop/osk/matepad-typing-watch.service $U/matepad-typing-watch.service
 printf '[Plugins]\nblurEnabled=false\n' > /etc/xdg/kwinrc     # popups: no outline before the slide
 cat > /usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
@@ -300,7 +302,7 @@ I 644 $S/image/matepad-device-setup.service $U/matepad-device-setup.service
 systemctl enable linux70-touch.service hexagonrpcd-sdsp.service matepad-sensord.service \
 	matepad-tfa9874.service matepad-volkeys.service matepad-pen-bluez.service matepad-pen-pair.service \
 	matepad-dp-recover.service matepad-chargeled-linux70.service matepad-tray-relayout.service \
-	matepad-device-setup.service bluetooth.service systemd-timesyncd.service upower.service
+	matepad-device-setup.service matepad-typing-watch.service bluetooth.service systemd-timesyncd.service \n	upower.service
 systemctl --global enable filter-chain.service matepad-hdmi-audio.service
 
 # ---- system identity, root file system, consoles, display manager

@@ -9,10 +9,15 @@ Keyboard switch) off while a keyboard is attached and on again when it is
 gone. A keyboard is an input device with letter keys and a space bar
 (the MatePad's own buttons, pen, touch screen and headset jack have none).
 
-The HUAWEI MatePad Keyboard folio stays connected over Bluetooth while it is
-folded behind the tablet; it only counts while the tablet stands in its
-dock. The dock's hall sensor is the kernel's tablet-mode switch, which KWin
-reports (org.kde.KWin.TabletModeManager): tablet mode = folio not in use.
+A connected keyboard is not always in use: the HUAWEI MatePad Keyboard folio
+stays connected over Bluetooth while it is folded behind the tablet, a
+wireless mouse's USB receiver presents a keyboard too, and a Bluetooth
+keyboard may lie unused. So a keyboard counts as in use
+  - the folio: while the tablet stands in its dock (the dock's hall sensor is
+    the kernel's tablet-mode switch, KWin's org.kde.KWin.TabletModeManager);
+  - any other keyboard: for IDLE seconds after it was typed on
+    (matepad-typing-watch, a system service, notes the last key press in
+    /run/matepad-typing; the session cannot read input devices).
 """
 import subprocess
 import sys
@@ -20,6 +25,8 @@ import time
 
 LETTERS = (16, 30, 44, 57)      # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
 FOLIO = "HUAWEI MatePad Keyboard"
+TYPING = "/run/matepad-typing"
+IDLE = 300
 
 
 def keyboards():
@@ -45,6 +52,15 @@ def kwin(*args, path="/VirtualKeyboard"):
     r = subprocess.run(["dbus-send", "--session", "--print-reply", "--dest=org.kde.KWin", path]
                        + list(args), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10)
     return r.stdout if r.returncode == 0 else None
+
+
+def last_typing():
+    """(time, device name) of the last key press on a keyboard, or (0, "")."""
+    try:
+        stamp, name = open(TYPING).read().strip().split(" ", 1)
+        return int(stamp), name
+    except (OSError, ValueError):
+        return 0, ""
 
 
 def tablet_mode():
@@ -75,13 +91,18 @@ def main():
     applied = None
     while True:
         kbd = keyboards()
-        if kbd and all(k == FOLIO for k in kbd) and tablet_mode():
-            kbd = []            # only the folio, and folded away
-        want = not kbd
+        typed_at, typed_on = last_typing()
+        if FOLIO in kbd and not tablet_mode():
+            using = FOLIO + " (docked)"
+        elif typed_on in kbd and typed_on != FOLIO and time.time() - typed_at < IDLE:
+            using = typed_on + " (typed on)"
+        else:
+            using = ""
+        want = not using
         if want != applied:
             if set_osk(want):
                 print("on-screen keyboard %s%s" % ("on" if want else "off",
-                      "" if want else " (keyboard: %s)" % ", ".join(kbd)), flush=True)
+                      "" if want else " (keyboard: %s)" % using), flush=True)
                 applied = want
             # else: KWin not ready yet, try again on the next round
         time.sleep(2)
