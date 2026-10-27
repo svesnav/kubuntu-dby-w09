@@ -178,8 +178,10 @@ printf '[Plugins]\nblurEnabled=false\n' > $D/etc/xdg/kwinrc     # popups: no out
 # Maliit 2.3 draws Qt Quick Controls keys: started by KWin it has no style set
 # and stays light, so the launcher sets Plasma's (org.kde.desktop), which
 # follows the colour scheme (dark keys with Breeze Dark). Its languages: the
-# installer, from the keyboard layouts.
+# installer, from the keyboard layouts. Maliit's own launcher gets the same
+# style (diverted by the package's preinst): System Settings may pick it.
 I 644 $S/desktop/osk/matepad-maliit-keyboard.desktop /usr/share/applications/matepad-maliit-keyboard.desktop
+I 644 $S/desktop/osk/com.github.maliit.keyboard.desktop /usr/share/applications/com.github.maliit.keyboard.desktop
 printf '[Wayland]\nInputMethod=/usr/share/applications/matepad-maliit-keyboard.desktop\n' >> $D/etc/xdg/kwinrc
 cat > $D/usr/local/bin/kwin_wayland <<'EOF'
 #!/bin/sh
