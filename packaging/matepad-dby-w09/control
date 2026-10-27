@@ -1,0 +1,17 @@
+Package: matepad-dby-w09
+Version: @VERSION@
+Architecture: arm64
+Maintainer: kubuntu-dby-w09 <https://github.com/svesnav/kubuntu-dby-w09>
+Installed-Size: @SIZE@
+Depends: @SHLIBS@, python3, python3-dbus, python3-gi, python3-pyqt6, python3-numpy,
+ maliit-keyboard, qml-module-org-kde-qqc2desktopstyle, pipewire, wireplumber, bluez,
+ upower, i2c-tools, iw, kdialog, pkexec, libcamera-matepad, matepad-hexagonrpc
+Recommends: linux-image-dby-w09
+Section: misc
+Priority: optional
+Homepage: https://github.com/svesnav/kubuntu-dby-w09
+Description: Huawei MatePad 11 (DBY-W09) hardware support for Kubuntu
+ Services, tools and settings for the MatePad 11 on mainline Linux 7.0:
+ touchscreen and pen, auto-rotation, speakers and volume keys, cover and
+ keyboard folio, charging LED, USB-C/DisplayPort, sleep, cameras and
+ flashlight, on-screen keyboard, Restart to HarmonyOS.

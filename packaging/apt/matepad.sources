@@ -1,0 +1,6 @@
+# The MatePad 11 (DBY-W09) packages: hardware support, kernel, rebuilt
+# bluez/qtwayland, libcamera (github.com/svesnav/kubuntu-dby-w09, packaging/)
+Types: deb
+URIs: https://github.com/svesnav/kubuntu-dby-w09/releases/download/apt/
+Suites: ./
+Signed-By: /usr/share/keyrings/matepad-archive-keyring.asc

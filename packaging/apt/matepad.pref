@@ -1,0 +1,7 @@
+# bluez and qtwayland from the MatePad repository carry patches the tablet
+# needs: they win over Ubuntu's, so an Ubuntu update of the same package does
+# not replace them until they are rebuilt on it. Its other packages update
+# normally (the newest version wins).
+Package: bluez* libbluetooth* qtwayland5* libqt5wayland*
+Pin: release o=MatePad DBY-W09
+Pin-Priority: 1001
