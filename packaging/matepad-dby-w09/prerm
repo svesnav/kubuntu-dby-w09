@@ -1,0 +1,12 @@
+#!/bin/sh
+# Removing the package switches its services off (an upgrade leaves them).
+set -e
+if [ "$1" = remove ]; then
+	for s in linux70-touch hexagonrpcd-sdsp matepad-sensord matepad-tfa9874 matepad-volkeys \
+		matepad-pen-bluez matepad-pen-pair matepad-dp-recover matepad-chargeled-linux70 \
+		matepad-tray-relayout matepad-device-setup matepad-typing-watch; do
+		deb-systemd-helper disable "$s.service" >/dev/null || true
+	done
+	systemctl --global disable matepad-hdmi-audio.service >/dev/null 2>&1 || true
+fi
+exit 0

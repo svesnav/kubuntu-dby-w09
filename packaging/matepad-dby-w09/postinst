@@ -1,0 +1,29 @@
+#!/bin/sh
+# Enables the MatePad services: all of them on the first install, and later
+# only those not switched off since (as dh_installsystemd does). The changes
+# apply at the next boot; nothing is restarted under a running session.
+set -e
+SERVICES="linux70-touch.service hexagonrpcd-sdsp.service matepad-sensord.service
+	matepad-tfa9874.service matepad-volkeys.service matepad-pen-bluez.service matepad-pen-pair.service
+	matepad-dp-recover.service matepad-chargeled-linux70.service matepad-tray-relayout.service
+	matepad-device-setup.service matepad-typing-watch.service"
+USER_SERVICES="filter-chain.service matepad-hdmi-audio.service"
+
+if [ "$1" = configure ]; then
+	for s in $SERVICES; do
+		if ! deb-systemd-helper debian-installed "$s" || deb-systemd-helper --quiet was-enabled "$s"; then
+			deb-systemd-helper enable "$s" >/dev/null || true
+		else
+			deb-systemd-helper update-state "$s" >/dev/null || true
+		fi
+	done
+	systemctl --global enable $USER_SERVICES >/dev/null 2>&1 || true
+	# the USB serial console (a login prompt on the PC's ttyACM): an instance
+	# of a template unit, which deb-systemd-helper cannot enable; first install
+	[ -n "$2" ] || systemctl enable serial-getty@ttyGS0.service >/dev/null 2>&1 || true
+	if [ -d /run/systemd/system ]; then
+		systemctl daemon-reload || true
+		udevadm control --reload-rules || true
+	fi
+fi
+exit 0
