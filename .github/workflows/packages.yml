@@ -40,8 +40,13 @@ jobs:
 
       - name: The published index (unchanged packages are not rebuilt)
         run: |
-          mkdir -p /tmp/published && cd /tmp/published
-          gh release download apt -p Packages 2>/dev/null || : > Packages
+          # a self-hosted runner keeps /tmp: a stale index would make download fail
+          rm -rf /tmp/published && mkdir -p /tmp/published && cd /tmp/published
+          if ! gh release view apt >/dev/null 2>&1; then
+            : > Packages    # no repository yet: build everything
+          else
+            gh release download apt -p Packages
+          fi
           grep -E '^(Package|Version):' Packages | paste - - || true
 
       - name: Build the packages
