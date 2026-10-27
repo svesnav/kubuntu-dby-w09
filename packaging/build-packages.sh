@@ -52,7 +52,7 @@ if ! published matepad-dby-w09 "$MATEPAD_VERSION"; then
 	bash "$S/packaging/stage-matepad.sh" "$S" $R
 	echo "$MATEPAD_VERSION" > $R/usr/share/matepad/version
 	install -d $R/DEBIAN
-	install -m 755 "$S/packaging/matepad-dby-w09/postinst" "$S/packaging/matepad-dby-w09/prerm" $R/DEBIAN/
+	install -m 755 "$S"/packaging/matepad-dby-w09/{preinst,postinst,prerm,postrm} $R/DEBIAN/
 	(cd $R && find etc -type f | sort | sed 's|^|/|') > $R/DEBIAN/conffiles
 	SHL=$(shlibs $R $R/usr/local/sbin/matepad-sensord $R/usr/local/sbin/matepad-volkeys \
 		$R/usr/local/sbin/matepad-tfa9874 $R/usr/local/lib/linux70-touch/binderfs-add)

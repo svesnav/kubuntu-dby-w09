@@ -42,4 +42,6 @@ into the repository secret `APT_SIGNING_KEY`, the public key into
 The first update (installer app) adds the repository, releases the old holds
 on bluez and the Qt Wayland client and removes the old library diversion
 (`migrate-manual-install.sh` does the same for a resumed image build), then
-installs `matepad-dby-w09` over the hand-installed files.
+installs `matepad-dby-w09` over the hand-installed files. dpkg keeps the
+hand-installed copies of the package's settings; the package's versions then
+replace them, and the old ones stay as `.dpkg-old`.

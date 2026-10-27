@@ -1,0 +1,9 @@
+#!/bin/sh
+# Removing the package gives Maliit its own launcher back (see preinst).
+set -e
+if [ "$1" = remove ] || [ "$1" = abort-install ] || [ "$1" = disappear ]; then
+	dpkg-divert --package matepad-dby-w09 --remove --rename \
+		--divert /usr/lib/matepad/com.github.maliit.keyboard.desktop.ubuntu \
+		/usr/share/applications/com.github.maliit.keyboard.desktop >/dev/null
+fi
+exit 0

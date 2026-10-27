@@ -83,6 +83,7 @@ fi
 #      with the rebuilt bluez and qtwayland, libcamera and hexagonrpcd
 sh $S/packaging/migrate-manual-install.sh	# a resumed build tree from before the packages
 $APT install matepad-dby-w09
+sh $S/packaging/migrate-manual-install.sh --after
 systemctl enable bluetooth.service systemd-timesyncd.service upower.service
 
 # ---- system identity, root file system, consoles, display manager

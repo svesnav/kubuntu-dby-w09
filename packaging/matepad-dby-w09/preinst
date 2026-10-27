@@ -1,0 +1,11 @@
+#!/bin/sh
+# Maliit's own launcher (System Settings > Virtual Keyboard > Maliit) is
+# replaced by one in the Plasma style (desktop/osk); Ubuntu's is set aside.
+set -e
+if [ "$1" = install ] || [ "$1" = upgrade ]; then
+	mkdir -p /usr/lib/matepad
+	dpkg-divert --package matepad-dby-w09 --add --rename \
+		--divert /usr/lib/matepad/com.github.maliit.keyboard.desktop.ubuntu \
+		/usr/share/applications/com.github.maliit.keyboard.desktop >/dev/null
+fi
+exit 0
