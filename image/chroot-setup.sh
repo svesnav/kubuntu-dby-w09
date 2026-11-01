@@ -39,6 +39,12 @@ Package: *
 Pin: origin packages.mozilla.org
 Pin-Priority: 1000
 EOF
+# Brave, the default browser (half Firefox's GPU work on WebGL pages here);
+# its brave-keyring package keeps the key up to date afterwards
+curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
+	-o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+echo "deb [arch=arm64 signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
+	> /etc/apt/sources.list.d/brave-browser-release.list
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d
 chmod 755 /usr/sbin/policy-rc.d
 apt-get update
@@ -47,7 +53,7 @@ $APT dist-upgrade
 # ---- the stock desktop and first-boot setup
 locale-gen en_US.UTF-8
 echo 'LANG=en_US.UTF-8' > /etc/default/locale
-$APT install kubuntu-desktop firefox sddm oem-config oem-config-kde \
+$APT install kubuntu-desktop brave-browser firefox sddm oem-config oem-config-kde \
 	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg xserver-xorg-input-libinput \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \

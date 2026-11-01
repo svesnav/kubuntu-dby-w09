@@ -30,9 +30,9 @@ repository builds the image and holds the hardware support services.
 
 ## What the image contains
 
-- `kubuntu-desktop` with Firefox from Mozilla's APT repository (no snaps; the
-  default browser),
-  Xournal++, the Maliit on-screen keyboard, `ddcutil`/`ddcui`, the Camera app
+- `kubuntu-desktop` with Brave from Brave's APT repository (the default
+  browser: about half Firefox's GPU work on WebGL pages such as maps) and
+  Firefox from Mozilla's APT repository (no snaps), Xournal++, the Maliit on-screen keyboard, `ddcutil`/`ddcui`, the Camera app
   (libcamera 0.7.2).
 - Plasma on Wayland, SDDM on Wayland, KWin with the OpenGL compositor and the
   blur effect off (popups slide in without a frame of outline).
