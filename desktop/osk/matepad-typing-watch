@@ -8,6 +8,11 @@ keys were pressed is not recorded. matepad-osk-auto (in the session, which
 cannot read input devices) keeps the on-screen keyboard off only while a
 keyboard was typed on lately, so a wireless receiver that also has a mouse,
 or a keyboard lying unused, does not block it. The devices are not grabbed.
+
+It also writes the folio dock's state to /run/matepad-dock, "docked" or
+"undocked", from the dock hall sensor's tablet-mode switch: KWin 5.27 only
+follows that switch's changes, so after a login with the tablet already in
+its dock it reports tablet mode.
 """
 import fcntl
 import glob
@@ -17,12 +22,31 @@ import struct
 import time
 
 OUT = "/run/matepad-typing"
+DOCK = "/run/matepad-dock"
+DOCK_NAME = "matepad-keyboard-dock"
 EVENT = struct.Struct("llHHi")
 EV_KEY = 1
 LETTERS = (16, 30, 44, 57)      # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
 TYPING = set(range(2, 12)) | set(range(16, 26)) | set(range(30, 39)) | set(range(44, 51)) | {57}
 EVIOCGNAME = 0x82004506          # _IOC(READ, 'E', 0x06, 512)
 EVIOCGBIT_KEY = 0x80604521       # _IOC(READ, 'E', 0x21 + EV_KEY, 96)
+EVIOCGSW = 0x8008451b            # _IOC(READ, 'E', 0x1b, 8)
+SW_TABLET_MODE = 1
+
+
+def write(path, text):
+    with open(path + ".tmp", "w") as f:
+        f.write(text + "\n")
+    os.replace(path + ".tmp", path)
+
+
+def dock_state(fd):
+    bits = bytearray(8)
+    try:
+        fcntl.ioctl(fd, EVIOCGSW, bits)
+    except OSError:
+        return None
+    return "undocked" if bits[0] >> SW_TABLET_MODE & 1 else "docked"
 
 
 def is_keyboard(fd):
@@ -45,13 +69,14 @@ def name_of(fd):
 
 def main():
     devices = {}                # path -> (fd, name)
+    dock, docked = None, None   # the dock switch's fd, its last state written
     last_scan = 0
     last_write = 0
     while True:
         if time.monotonic() - last_scan > 3:
             last_scan = time.monotonic()
             for path in glob.glob("/dev/input/event*"):
-                if path in devices:
+                if path in devices or (dock is not None and path == dock[1]):
                     continue
                 try:
                     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
@@ -59,11 +84,24 @@ def main():
                     continue
                 if is_keyboard(fd):
                     devices[path] = (fd, name_of(fd))
+                elif dock is None and name_of(fd) == DOCK_NAME:
+                    dock = (fd, path)
                 else:
                     os.close(fd)
+        if dock is not None:
+            state = dock_state(dock[0])
+            if state and state != docked:
+                write(DOCK, state)
+                docked = state
         fds = {fd: path for path, (fd, _) in devices.items()}
-        ready, _, _ = select.select(list(fds), [], [], 3)
+        ready, _, _ = select.select(list(fds) + ([dock[0]] if dock else []), [], [], 3)
         for fd in ready:
+            if dock is not None and fd == dock[0]:
+                try:
+                    os.read(fd, EVENT.size * 64)    # the state is read above
+                except OSError:
+                    pass
+                continue
             path = fds[fd]
             try:
                 data = os.read(fd, EVENT.size * 64)
@@ -75,9 +113,7 @@ def main():
                         for _, _, t, c, v in EVENT.iter_unpack(data[:len(data) // EVENT.size * EVENT.size]))
             if typed and time.time() - last_write >= 1:
                 last_write = time.time()
-                with open(OUT + ".tmp", "w") as f:
-                    f.write("%d %s\n" % (int(last_write), devices[path][1]))
-                os.replace(OUT + ".tmp", OUT)
+                write(OUT, "%d %s" % (int(last_write), devices[path][1]))
 
 
 if __name__ == "__main__":

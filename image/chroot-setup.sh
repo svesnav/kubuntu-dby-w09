@@ -9,7 +9,7 @@ APT="apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-co
 U=/etc/systemd/system
 echo 'Acquire::Retries "10";' > /etc/apt/apt.conf.d/80-matepad-build-retries
 
-# ---- apt: Ubuntu archive with sources, no snaps, Mozilla's Firefox .deb
+# ---- apt: Ubuntu archive with sources, no snaps, Brave's .deb
 rm -f /etc/apt/sources.list
 cat > /etc/apt/sources.list.d/ubuntu.sources <<'EOF'
 Types: deb deb-src
@@ -25,22 +25,14 @@ Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 EOF
 cat > /etc/apt/preferences.d/no-snap <<'EOF'
-# The image has no snapd: Firefox comes from Mozilla's APT repository.
-Package: snapd
-Pin: release a=*
+# The image has no snapd, and no Ubuntu Firefox (a wrapper that installs the
+# snap; kubuntu-desktop recommends it): the browser is Brave's .deb.
+Package: snapd firefox
+Pin: release o=Ubuntu
 Pin-Priority: -10
 EOF
-install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg -o /etc/apt/keyrings/packages.mozilla.org.asc
-echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" \
-	> /etc/apt/sources.list.d/mozilla.list
-cat > /etc/apt/preferences.d/mozilla <<'EOF'
-Package: *
-Pin: origin packages.mozilla.org
-Pin-Priority: 1000
-EOF
-# Brave, the default browser (half Firefox's GPU work on WebGL pages here);
-# its brave-keyring package keeps the key up to date afterwards
+# Brave, the browser (on WebGL pages such as maps it needs about half the GPU
+# work Firefox does here); its brave-keyring package keeps the key current
 curl -fsSL https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg \
 	-o /usr/share/keyrings/brave-browser-archive-keyring.gpg
 echo "deb [arch=arm64 signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" \
@@ -53,7 +45,7 @@ $APT dist-upgrade
 # ---- the stock desktop and first-boot setup
 locale-gen en_US.UTF-8
 echo 'LANG=en_US.UTF-8' > /etc/default/locale
-$APT install kubuntu-desktop brave-browser firefox sddm oem-config oem-config-kde \
+$APT install kubuntu-desktop brave-browser sddm oem-config oem-config-kde \
 	language-pack-en language-pack-kde-en plasma-workspace-wayland xserver-xorg xserver-xorg-input-libinput \
 	network-manager bluez linux-firmware systemd-timesyncd \
 	xournalpp kdialog pkexec python3-dbus python3-gi \

@@ -14,7 +14,9 @@ stays connected over Bluetooth while it is folded behind the tablet, a
 wireless mouse's USB receiver presents a keyboard too, and a Bluetooth
 keyboard may lie unused. So a keyboard counts as in use
   - the folio: while the tablet stands in its dock (the dock's hall sensor is
-    the kernel's tablet-mode switch, KWin's org.kde.KWin.TabletModeManager);
+    the kernel's tablet-mode switch; matepad-typing-watch writes its state to
+    /run/matepad-dock, as KWin's tablet mode only follows the switch's
+    changes and is wrong after a login with the tablet already docked);
   - any other keyboard: for IDLE seconds after it was typed on
     (matepad-typing-watch, a system service, notes the last key press in
     /run/matepad-typing; the session cannot read input devices).
@@ -26,6 +28,7 @@ import time
 LETTERS = (16, 30, 44, 57)      # KEY_Q, KEY_A, KEY_Z, KEY_SPACE
 FOLIO = "HUAWEI MatePad Keyboard"
 TYPING = "/run/matepad-typing"
+DOCK = "/run/matepad-dock"
 IDLE = 300
 
 
@@ -63,11 +66,14 @@ def last_typing():
         return 0, ""
 
 
-def tablet_mode():
-    """KWin's tablet mode: on while the folio is not in its dock."""
-    out = kwin("org.freedesktop.DBus.Properties.Get", "string:org.kde.KWin.TabletModeManager",
-               "string:tabletMode", path="/org/kde/KWin")
-    return out is not None and "boolean true" in out
+def docked():
+    """The tablet stands in the folio's dock (dock hall sensor)."""
+    try:
+        return open(DOCK).read().strip() == "docked"
+    except OSError:     # matepad-typing-watch not running: KWin's tablet mode
+        out = kwin("org.freedesktop.DBus.Properties.Get", "string:org.kde.KWin.TabletModeManager",
+                   "string:tabletMode", path="/org/kde/KWin")
+        return out is not None and "boolean false" in out
 
 
 def prop(name):
@@ -92,7 +98,7 @@ def main():
     while True:
         kbd = keyboards()
         typed_at, typed_on = last_typing()
-        if FOLIO in kbd and not tablet_mode():
+        if FOLIO in kbd and docked():
             using = FOLIO + " (docked)"
         elif typed_on in kbd and typed_on != FOLIO and time.time() - typed_at < IDLE:
             using = typed_on + " (typed on)"

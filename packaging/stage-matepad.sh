@@ -34,10 +34,9 @@ printf 'qcom_pd_mapper\nsnd_soc_spdif_tx\n' > $D/etc/modules-load.d/matepad.conf
 # which leaves the panel's preferred://browser launcher dead, and Firefox's own
 # "make default" then writes a hidden, icon-less userapp-Firefox-*.desktop.
 # /etc/xdg comes before kubuntu-default-settings in XDG_CONFIG_DIRS.
-# Brave first (the image installs it; half Firefox's GPU work on WebGL pages
-# here), Firefox where Brave is missing: an empty BrowserApplication makes
-# Plasma's preferred://browser take the text/html default, which falls back
-# through the list.
+# Brave (the image's browser), or Firefox on installs from before it: an
+# empty BrowserApplication makes Plasma's preferred://browser take the
+# text/html default, which falls back through the list.
 install -d $D/etc/xdg
 printf '[General]\nBrowserApplication=\n' > $D/etc/xdg/kdeglobals
 cat > $D/etc/xdg/mimeapps.list <<'EOF'
