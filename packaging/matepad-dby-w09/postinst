@@ -24,6 +24,8 @@ if [ "$1" = configure ]; then
 	if [ -d /run/systemd/system ]; then
 		systemctl daemon-reload || true
 		udevadm control --reload-rules || true
+		# firmware this version lists that the install predates
+		/usr/local/sbin/matepad-modem-firmware || true
 	fi
 fi
 exit 0

@@ -163,6 +163,11 @@ I 644 $S/sleep/50-matepad-power-key.conf /etc/systemd/logind.conf.d/50-matepad-p
 I 644 $S/sleep/50-matepad-sleep.rules /etc/polkit-1/rules.d/50-matepad-sleep.rules
 install -d $D/etc/skel/.config
 bash $S/sleep/matepad-powerdevil-profile.sh $D/etc/skel/.config/powermanagementprofilesrc
+# The battery applet's brightness slider, one PowerDevil call at a time
+# (desktop/battery-applet; Plasma's own main.qml is diverted by preinst):
+# each call takes its helper about 50 ms, the slider moves faster, and the
+# queued calls played old positions back (100 % jumped to 88 %).
+I 644 $S/desktop/battery-applet/main.qml /usr/share/plasma/plasmoids/org.kde.plasma.battery/contents/ui/main.qml
 # desktop
 I 755 $S/desktop/matepad-tray-relayout /usr/local/bin/matepad-tray-relayout
 I 644 $S/desktop/matepad-tray-relayout.service /etc/systemd/system/matepad-tray-relayout.service
@@ -211,4 +216,5 @@ I 644 $S/boot-switch/matepad-boot-harmonyos.desktop /usr/share/applications/mate
 I 755 $S/boot-switch/matepad-boot-harmonyos.desktop /etc/skel/Desktop/matepad-boot-harmonyos.desktop
 # first boot: derive the hardware data from the copied device files
 I 755 $S/image/matepad-device-setup /usr/local/sbin/matepad-device-setup
+I 755 $S/image/matepad-modem-firmware /usr/local/sbin/matepad-modem-firmware
 I 644 $S/image/matepad-device-setup.service /etc/systemd/system/matepad-device-setup.service

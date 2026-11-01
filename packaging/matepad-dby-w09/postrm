@@ -1,9 +1,11 @@
 #!/bin/sh
-# Removing the package gives Maliit its own launcher back (see preinst).
+# Removing the package gives Plasma its own files back (see preinst).
 set -e
+undivert() {	# undivert PATH NAME
+	dpkg-divert --package matepad-dby-w09 --remove --rename --divert "/usr/lib/matepad/$2" "$1" >/dev/null
+}
 if [ "$1" = remove ] || [ "$1" = abort-install ] || [ "$1" = disappear ]; then
-	dpkg-divert --package matepad-dby-w09 --remove --rename \
-		--divert /usr/lib/matepad/com.github.maliit.keyboard.desktop.ubuntu \
-		/usr/share/applications/com.github.maliit.keyboard.desktop >/dev/null
+	undivert /usr/share/applications/com.github.maliit.keyboard.desktop com.github.maliit.keyboard.desktop.ubuntu
+	undivert /usr/share/plasma/plasmoids/org.kde.plasma.battery/contents/ui/main.qml battery-applet-main.qml.ubuntu
 fi
 exit 0

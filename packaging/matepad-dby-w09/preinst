@@ -1,11 +1,15 @@
 #!/bin/sh
-# Maliit's own launcher (System Settings > Virtual Keyboard > Maliit) is
-# replaced by one in the Plasma style (desktop/osk); Ubuntu's is set aside.
+# Plasma files the package replaces; Ubuntu's are set aside in /usr/lib/matepad:
+#   Maliit's own launcher (System Settings > Virtual Keyboard > Maliit), in the
+#   Plasma style (desktop/osk)
+#   the battery applet's main.qml, brightness slider (desktop/battery-applet)
 set -e
+divert() {	# divert PATH NAME
+	dpkg-divert --package matepad-dby-w09 --add --rename --divert "/usr/lib/matepad/$2" "$1" >/dev/null
+}
 if [ "$1" = install ] || [ "$1" = upgrade ]; then
 	mkdir -p /usr/lib/matepad
-	dpkg-divert --package matepad-dby-w09 --add --rename \
-		--divert /usr/lib/matepad/com.github.maliit.keyboard.desktop.ubuntu \
-		/usr/share/applications/com.github.maliit.keyboard.desktop >/dev/null
+	divert /usr/share/applications/com.github.maliit.keyboard.desktop com.github.maliit.keyboard.desktop.ubuntu
+	divert /usr/share/plasma/plasmoids/org.kde.plasma.battery/contents/ui/main.qml battery-applet-main.qml.ubuntu
 fi
 exit 0

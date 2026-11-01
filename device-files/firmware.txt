@@ -1,6 +1,7 @@
 # Firmware for /usr/lib/firmware/qcom/sm8250/huawei/dby-w09/, from the tablet:
 #   a650_zap.*  <- /vendor/firmware/a650_zap.*  (GPU zap shader, Huawei-signed)
 #   slpi.*, adsp.*  <- modem partition, image/slpi.*, image/adsp.*
+#   venus.*  <- modem partition, image/venus.* (video decoder/encoder)
 a650_zap.b00
 a650_zap.b01
 a650_zap.b02
@@ -48,3 +49,16 @@ slpi.b18
 slpi.b19
 slpi.b20
 slpi.mdt
+venus.mdt
+venus.b00
+venus.b01
+venus.b02
+venus.b03
+venus.b04
+venus.b05
+venus.b06
+venus.b07
+venus.b08
+venus.b09
+venus.b10
+venus.b19
