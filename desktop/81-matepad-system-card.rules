@@ -1,0 +1,4 @@
+# Kubuntu runs from the microSD card, so the card is the system disk, not a
+# memory card. 80-udisks2.rules marks it flash_sd, and Plasma's disk plugin
+# skips such drives: System Monitor then shows no disk usage at all.
+KERNEL=="mmcblk[0-9]*", SUBSYSTEMS=="mmc", ENV{DEVTYPE}=="disk", ENV{ID_PATH}=="platform-8804000.mmc", ENV{ID_DRIVE_FLASH_SD}="", ENV{ID_DRIVE_MEDIA_FLASH_SD}=""

@@ -180,6 +180,9 @@ I 755 $S/desktop/osk/matepad-osk-auto.py /usr/local/bin/matepad-osk-auto
 I 644 $S/desktop/osk/matepad-osk-auto.desktop /etc/xdg/autostart/matepad-osk-auto.desktop
 I 755 $S/desktop/osk/matepad-typing-watch /usr/local/sbin/matepad-typing-watch
 I 644 $S/desktop/osk/matepad-typing-watch.service /etc/systemd/system/matepad-typing-watch.service
+# System Monitor's disk usage: udisks reports the system card as a memory card
+# (flash_sd), which Plasma's disk plugin leaves out
+I 644 $S/desktop/81-matepad-system-card.rules /etc/udev/rules.d/81-matepad-system-card.rules
 printf '[Plugins]\nblurEnabled=false\n' > $D/etc/xdg/kwinrc     # popups: no outline before the slide
 # the on-screen keyboard: KWin shows a virtual keyboard only with one set here
 # (System Settings > Virtual Keyboard); matepad-osk-auto switches it on and off.
